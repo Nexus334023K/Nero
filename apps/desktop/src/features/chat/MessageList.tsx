@@ -3,12 +3,12 @@ import { useChatStore } from '../../stores/chatStore';
 import { MessageBubble } from './MessageBubble';
 
 export function MessageList() {
-  const { messages, isLoading } = useChatStore();
+  const { messages, isLoading, streamingMessageId } = useChatStore();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streamingMessageId]);
 
   if (messages.length === 0) {
     return (
@@ -27,10 +27,14 @@ export function MessageList() {
   return (
     <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col">
       {messages.map((message) => (
-        <MessageBubble key={message.id} message={message} />
+        <MessageBubble
+          key={message.id}
+          message={message}
+          isStreaming={message.id === streamingMessageId}
+        />
       ))}
 
-      {isLoading && (
+      {isLoading && !streamingMessageId && (
         <div className="flex items-center gap-2 text-nero-muted text-xs py-2">
           <div className="w-2 h-2 rounded-full bg-nero-cyan animate-ping" />
           <span className="font-mono">NERO is thinking...</span>

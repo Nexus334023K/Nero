@@ -48,7 +48,8 @@ async def test_chat_flow_and_persistence():
         assert "response" in data
         assert "conversation_id" in data
         assert "message_id" in data
-        assert data["model_used"] == "placeholder"
+        assert "model_used" in data
+        assert data["model_used"] in ["placeholder", "offline:nero-heuristic-v1"]
         conv_id = data["conversation_id"]
 
         # Fetch conversations list

@@ -1,13 +1,22 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAppStore } from '../../stores/appStore';
-import { api } from '../../services/api';
+import { api, type StreamDonePayload } from '../../services/api';
 import type { Message } from '../../types';
 
 export function MessageInput() {
   const [content, setContent] = useState('');
-  const { activeConversationId, addMessage, isLoading, setIsLoading } = useChatStore();
-  const { setAIState } = useAppStore();
+  const {
+    activeConversationId,
+    setActiveConversation,
+    addMessage,
+    updateMessage,
+    appendStreamingChunk,
+    setStreamingMessageId,
+    isLoading,
+    setIsLoading,
+  } = useChatStore();
+  const { personalityMode, setAIState } = useAppStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -34,29 +43,57 @@ export function MessageInput() {
     setIsLoading(true);
     setAIState('thinking');
 
-    try {
-      const res = await api.chat.send(trimmed, activeConversationId || undefined);
-      const assistantMessage: Message = {
-        id: res.message_id || `asst-${Date.now()}`,
-        role: 'assistant',
-        content: res.response,
-        timestamp: res.timestamp || new Date().toISOString(),
-        model_used: res.model_used,
-      };
-      addMessage(assistantMessage);
-      setAIState('idle');
-    } catch {
-      const errorMessage: Message = {
-        id: `err-${Date.now()}`,
-        role: 'system',
-        content: 'Failed to communicate with NERO backend. Please ensure the backend is running.',
-        timestamp: new Date().toISOString(),
-      };
-      addMessage(errorMessage);
-      setAIState('error');
-    } finally {
-      setIsLoading(false);
-    }
+    const assistantTempId = `asst-stream-${Date.now()}`;
+    const placeholderMessage: Message = {
+      id: assistantTempId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+    };
+
+    addMessage(placeholderMessage);
+    setStreamingMessageId(assistantTempId);
+
+    let receivedFirstChunk = false;
+
+    await api.chat.sendStream(
+      trimmed,
+      activeConversationId || undefined,
+      personalityMode,
+      (chunk: string) => {
+        if (!receivedFirstChunk) {
+          receivedFirstChunk = true;
+          setAIState('speaking');
+        }
+        appendStreamingChunk(assistantTempId, chunk);
+      },
+      (data: StreamDonePayload) => {
+        setAIState('idle');
+        setStreamingMessageId(null);
+        setIsLoading(false);
+
+        updateMessage(assistantTempId, {
+          id: data.message_id || assistantTempId,
+          content: data.response,
+          model_used: data.model_used,
+          timestamp: data.timestamp || new Date().toISOString(),
+        });
+
+        if (data.conversation_id && !activeConversationId) {
+          setActiveConversation(data.conversation_id);
+        }
+      },
+      (_err: unknown) => {
+        setAIState('error');
+        setStreamingMessageId(null);
+        setIsLoading(false);
+
+        updateMessage(assistantTempId, {
+          role: 'system',
+          content: 'Unable to stream response from NERO intelligence engine. Please check provider connection.',
+        });
+      },
+    );
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -88,7 +125,16 @@ export function MessageInput() {
             disabled={isLoading}
             title="Voice coming soon"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
               <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
               <line x1="12" y1="19" x2="12" y2="23" />
@@ -108,7 +154,16 @@ export function MessageInput() {
           className="p-2 rounded-lg bg-nero-cyan text-nero-bg hover:brightness-110 disabled:opacity-30 disabled:hover:brightness-100 transition-all cyan-glow-sm"
           title="Send message"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -18,4 +18,5 @@ class WSMessageType(str, Enum):
 class WSMessage(BaseModel):
     type: WSMessageType
     data: Optional[dict] = None
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+

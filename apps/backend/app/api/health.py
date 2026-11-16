@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -31,7 +31,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthStatus:
         status=overall,
         version=settings.version,
         environment=settings.environment,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.utcnow().isoformat(),
         database=db_status,
         uptime_seconds=round(time.time() - _start_time, 2),
         services={
@@ -45,4 +45,5 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthStatus:
 @router.get("/ping")
 async def ping() -> dict:
     """Lightweight liveness check."""
-    return {"pong": True, "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"pong": True, "timestamp": datetime.utcnow().isoformat()}
+

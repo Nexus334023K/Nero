@@ -83,7 +83,7 @@ class ActivityLog(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     action_type: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    action_metadata: Mapped[str] = mapped_column("metadata", Text, nullable=True, default="{}")  # JSON string
+    metadata: Mapped[str] = mapped_column(Text, nullable=True, default="{}")  # JSON string
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -108,3 +108,4 @@ class ToolPermission(Base):
         String(50), nullable=False, default="permission_required"
     )  # auto/permission_required/explicit_confirmation
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+

@@ -26,12 +26,6 @@ function createWindow(): void {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
-    if (process.argv.includes('--test')) {
-      console.log('[NERO_ELECTRON_TEST_SUCCESS] Main window ready and showed.');
-      setTimeout(() => {
-        app.quit();
-      }, 500);
-    }
   });
 
   if (isDev) {
@@ -73,3 +67,4 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+

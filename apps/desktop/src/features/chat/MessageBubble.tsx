@@ -3,6 +3,7 @@ import type { Message } from '../../types';
 
 interface MessageBubbleProps {
   message: Message;
+  isStreaming?: boolean;
 }
 
 function formatContent(content: string) {
@@ -37,7 +38,7 @@ function formatContent(content: string) {
   });
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
@@ -80,7 +81,20 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               : 'glass text-nero-text rounded-bl-xs border border-white/10'
           }`}
         >
-          {formatContent(message.content)}
+          {message.content ? (
+            <>
+              {formatContent(message.content)}
+              {isStreaming && (
+                <span className="inline-block w-1.5 h-3.5 bg-nero-cyan ml-1 animate-pulse align-middle" />
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 py-1 px-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-nero-cyan animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-nero-cyan animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-nero-cyan animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          )}
         </div>
       </div>
 

@@ -11,6 +11,7 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.equal(states.length, 6);
     assert.ok(states.includes('idle'));
     assert.ok(states.includes('thinking'));
+    assert.ok(states.includes('speaking'));
     assert.ok(states.includes('error'));
 
     // Verify personality modes
@@ -30,6 +31,39 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.equal(mockMessage.role, 'user');
     assert.equal(mockMessage.content, 'Hello NERO');
     assert.ok(Date.parse(mockMessage.timestamp) > 0);
+  });
+
+  await t.test('Phase 2 streaming chunk assembly contract', () => {
+    const placeholderMsg = {
+      id: 'asst-stream-1',
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+    };
+
+    const chunks = ['NERO ', 'is ', 'streaming ', 'tokens.'];
+    let accumulated = placeholderMsg.content;
+    for (const chunk of chunks) {
+      accumulated += chunk;
+    }
+
+    assert.equal(accumulated, 'NERO is streaming tokens.');
+  });
+
+  await t.test('Phase 2 API services structure', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const apiContent = await fs.readFile(
+      path.resolve(__dirname, '../src/services/api.ts'),
+      'utf8'
+    );
+
+    assert.ok(apiContent.includes('/chat/stream'), 'Stream endpoint referenced');
+    assert.ok(apiContent.includes('sendStream'), 'sendStream function exported');
+    assert.ok(apiContent.includes('/providers'), 'Providers endpoints configured');
+    assert.ok(apiContent.includes('/personality'), 'Personality endpoints configured');
   });
 
   await t.test('Electron IPC Security Configuration', async () => {
