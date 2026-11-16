@@ -3,8 +3,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "NERO"
-    version: str = "0.1.0"
-    environment: str = "development"
+    version: str = "1.0.0"
+    environment: str = "production"
     backend_host: str = "localhost"
     backend_port: int = 8765
     database_url: str = "sqlite+aiosqlite:///./nero.db"

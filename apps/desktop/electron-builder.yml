@@ -1,9 +1,8 @@
 appId: com.nero.desktop
 productName: NERO
-copyright: "Copyright © 2024 NERO"
+copyright: "Copyright © 2026 NERO AI"
 directories:
   output: release
-  buildResources: assets
 files:
   - dist/**/*
   - dist-electron/**/*
@@ -12,8 +11,9 @@ win:
   target:
     - target: nsis
       arch: x64
-  icon: assets/icon.ico
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: NERO

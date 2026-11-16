@@ -721,11 +721,12 @@ export function SettingsView() {
         <Card className="flex flex-col gap-2" animate={false}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-nero-text">NERO Desktop</span>
-            <span className="text-xs font-mono text-nero-cyan">v0.2.0-phase2</span>
+            <span className="text-xs font-mono text-nero-cyan">v1.0.0 (Production)</span>
           </div>
           <p className="text-xs text-nero-muted leading-relaxed">
-            Windows Desktop AI Companion with local and cloud multimodal intelligence, real-time
-            streaming SSE, and adaptive personality core.
+            Windows Desktop AI Companion with multimodal cloud and offline intelligence, persistent
+            ChromaDB vector memory, Fish Audio voice synthesis, permission-guarded desktop
+            automation, and developer companion suite.
           </p>
         </Card>
       </section>

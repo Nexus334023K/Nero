@@ -35,10 +35,17 @@ function createWindow(): void {
     void mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
 
-  // Handle external links
+  // Handle external links and prevent in-window hijack
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('http://localhost:5173') && !url.startsWith('file://')) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
   });
 }
 

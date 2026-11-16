@@ -1,17 +1,24 @@
 {
   "name": "nero",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "workspaces": ["apps/desktop"],
+  "workspaces": [
+    "apps/desktop"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/desktop",
+    "dev:all": "concurrently \"npm run start:backend\" \"npm run electron:dev --workspace=apps/desktop\"",
     "electron:dev": "npm run electron:dev --workspace=apps/desktop",
     "electron:start": "npm run electron:start --workspace=apps/desktop",
     "build": "npm run build --workspace=apps/desktop",
+    "build:all": "npm run type-check && npm run build --workspace=apps/desktop",
     "type-check": "npm run type-check --workspace=apps/desktop",
+    "package:win": "npm run electron:build --workspace=apps/desktop",
     "test:frontend": "npm run test --workspace=apps/desktop",
     "test:backend": "cd apps/backend && D:\\Nero\\.venv\\Scripts\\pytest.exe -v",
-    "test": "npm run test:frontend && npm run test:backend",
-    "start:backend": "cd apps/backend && D:\\Nero\\.venv\\Scripts\\python.exe run.py"
+    "test:all": "npm run test:frontend && npm run test:backend",
+    "test": "npm run test:all",
+    "start:backend": "cd apps/backend && D:\\Nero\\.venv\\Scripts\\python.exe run.py",
+    "start": "powershell -ExecutionPolicy Bypass -File start-nero.ps1"
   }
 }

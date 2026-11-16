@@ -260,4 +260,50 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     );
     assert.ok(sidebarContent.includes("path: '/productivity'"), 'Productivity route in sidebar');
   });
+
+  await t.test('Phase 7 Production Hardening, Packaging & Security contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // 1. Verify ErrorBoundary component exists
+    const errorBoundaryContent = await fs.readFile(
+      path.resolve(__dirname, '../src/components/ui/ErrorBoundary.tsx'),
+      'utf8'
+    );
+    assert.ok(errorBoundaryContent.includes('Application Recovery Shield'), 'Recovery shield title');
+    assert.ok(errorBoundaryContent.includes('Reload Interface'), 'Reload action present');
+
+    // 2. Verify Electron main.ts navigation security
+    const mainContent = await fs.readFile(
+      path.resolve(__dirname, '../electron/main.ts'),
+      'utf8'
+    );
+    assert.ok(mainContent.includes('will-navigate'), 'will-navigate handler guards against hijacking');
+    assert.ok(mainContent.includes('shell.openExternal'), 'External URLs routed through OS shell');
+
+    // 3. Verify CSP in index.html
+    const indexHtml = await fs.readFile(
+      path.resolve(__dirname, '../index.html'),
+      'utf8'
+    );
+    assert.ok(indexHtml.includes('Content-Security-Policy'), 'CSP header defined');
+    assert.ok(indexHtml.includes("media-src 'self' blob: data:"), 'Media src permits audio playback');
+
+    // 4. Verify 1-Click Launchers exist at project root
+    const rootDir = path.resolve(__dirname, '../../..');
+    const hasBat = await fs.stat(path.resolve(rootDir, 'start-nero.bat')).then(() => true).catch(() => false);
+    const hasPs1 = await fs.stat(path.resolve(rootDir, 'start-nero.ps1')).then(() => true).catch(() => false);
+    assert.ok(hasBat, 'start-nero.bat launcher exists');
+    assert.ok(hasPs1, 'start-nero.ps1 launcher exists');
+
+    // 5. Verify electron-builder configuration
+    const builderContent = await fs.readFile(
+      path.resolve(__dirname, '../electron-builder.yml'),
+      'utf8'
+    );
+    assert.ok(builderContent.includes('nsis'), 'NSIS Windows installer target defined');
+    assert.ok(builderContent.includes('createDesktopShortcut: true'), 'Desktop shortcut enabled');
+  });
 });
