@@ -160,4 +160,55 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(memoryViewContent.includes('long_term'), 'Long-term memory category supported');
     assert.ok(memoryViewContent.includes('episodic'), 'Episodic memory category supported');
   });
+
+  await t.test('Phase 5 Desktop Automation & Tool Engine contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // Verify api.ts tools endpoints
+    const apiContent = await fs.readFile(
+      path.resolve(__dirname, '../src/services/api.ts'),
+      'utf8'
+    );
+    assert.ok(apiContent.includes('/tools'), 'Tools base endpoint configured');
+    assert.ok(apiContent.includes('/tools/execute'), 'Tool execution endpoint configured');
+    assert.ok(apiContent.includes('/tools/approve'), 'Tool approval endpoint configured');
+    assert.ok(apiContent.includes('/tools/system/stats'), 'System stats endpoint configured');
+    assert.ok(apiContent.includes('/tools/apps'), 'Apps list endpoint configured');
+
+    // Verify tools store exists
+    const toolsStoreContent = await fs.readFile(
+      path.resolve(__dirname, '../src/stores/toolsStore.ts'),
+      'utf8'
+    );
+    assert.ok(toolsStoreContent.includes('useToolsStore'), 'useToolsStore exported');
+    assert.ok(toolsStoreContent.includes('executeTool'), 'executeTool action present');
+    assert.ok(toolsStoreContent.includes('approveAction'), 'approveAction present');
+
+    // Verify AutomationsView
+    const automationsViewContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/automations/AutomationsView.tsx'),
+      'utf8'
+    );
+    assert.ok(automationsViewContent.includes('Desktop Automation'), 'Desktop Automation title rendered');
+    assert.ok(automationsViewContent.includes('App Launcher'), 'App launcher tab present');
+    assert.ok(automationsViewContent.includes('System Telemetry'), 'System telemetry tab present');
+    assert.ok(automationsViewContent.includes('File Explorer'), 'File explorer tab present');
+
+    // Verify Sidebar navigation
+    const sidebarContent = await fs.readFile(
+      path.resolve(__dirname, '../src/components/layout/Sidebar.tsx'),
+      'utf8'
+    );
+    assert.ok(sidebarContent.includes("path: '/automations'"), 'Automations route in sidebar');
+
+    // Verify Approval Token parsing contract
+    const rawMsg = 'I need permission <!-- APPROVAL_TOKEN:tok_test123 TOOL:delete_file -->';
+    const match = rawMsg.match(/<!--\s*APPROVAL_TOKEN:(\S+)\s+TOOL:(\S+)\s*-->/);
+    assert.ok(match !== null);
+    assert.equal(match[1], 'tok_test123');
+    assert.equal(match[2], 'delete_file');
+  });
 });

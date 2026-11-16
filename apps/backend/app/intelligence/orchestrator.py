@@ -13,6 +13,8 @@ from app.intelligence.personality.engine import personality_engine
 from app.intelligence.router import ai_router
 from app.memory.manager import memory_manager
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.tools.intent import ToolIntentDetector
+from app.tools.registry import tool_registry
 
 logger = get_logger(__name__)
 
@@ -21,7 +23,7 @@ DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 class AIOrchestrator:
     """Coordinates intent analysis, personality system prompts, model routing,
-    streaming generation, and persistence into SQLite.
+    desktop automation tools, streaming generation, and persistence into SQLite.
     """
 
     def __init__(self) -> None:
@@ -104,6 +106,46 @@ class AIOrchestrator:
         db.add(user_msg)
         await db.flush()
 
+        # Check for tool intent
+        tool_action_context = ""
+        tool_intent = ToolIntentDetector.detect(request.message)
+        if tool_intent:
+            tool_name, tool_params = tool_intent
+            tool_res = await tool_registry.execute_tool(tool_name, tool_params, db=db)
+            if tool_res.get("status") == "approval_required":
+                approval = tool_res["approval"]
+                response_text = (
+                    f"I need your approval before proceeding with this action:\n\n"
+                    f"**Action**: `{tool_name}`\n"
+                    f"**Reason**: {approval.get('reason')}\n\n"
+                    f"<!-- APPROVAL_TOKEN:{approval.get('token')} TOOL:{tool_name} -->\n"
+                    f"Would you like me to proceed?"
+                )
+                assistant_msg_id = str(uuid.uuid4())
+                assistant_msg = Message(
+                    id=assistant_msg_id,
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content=response_text,
+                    model_used="nero:tool-permission",
+                )
+                db.add(assistant_msg)
+                await db.commit()
+                return ChatResponse(
+                    response=response_text,
+                    conversation_id=conv_id,
+                    message_id=assistant_msg_id,
+                    model_used="nero:tool-permission",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
+            elif tool_res.get("status") == "success":
+                tool_action_context = (
+                    f"\n\n[LIVE DESKTOP TOOL RESULT]:\n"
+                    f"Tool: {tool_name}\n"
+                    f"Output: {json.dumps(tool_res.get('result', {}))}\n"
+                    f"Synthesize this live data and respond to the user naturally."
+                )
+
         # Build prompt & route to provider
         history = await self.get_conversation_history(db, conv_id, limit=8)
         mode = request.personality_mode or conversation.personality_mode
@@ -111,6 +153,8 @@ class AIOrchestrator:
             mode=mode,
             user_message=request.message,
         )
+        if tool_action_context:
+            system_prompt += tool_action_context
 
         # Retrieve relevant memories and inject into prompt
         try:
@@ -120,13 +164,13 @@ class AIOrchestrator:
                 if mem_lines:
                     system_prompt += f"\n\n[RECALLED USER MEMORIES & CONTEXT]:\n{mem_lines}\nUse these recalled user context details to personalize your answers naturally."
         except Exception as e:
-            logger.warning(f"Memory retrieval notice: {e}")
+            logger.warning("Memory retrieval notice: %s", e)
 
         # Auto-extract new memory candidates in background
         try:
             await memory_manager.process_chat_message_for_memories(request.message, user_id=DEFAULT_USER_ID)
         except Exception as e:
-            logger.warning(f"Memory extraction notice: {e}")
+            logger.warning("Memory extraction notice: %s", e)
 
         provider = await self.router.select_provider()
         model_name = f"{provider.name}:{provider.default_model}"
@@ -162,7 +206,6 @@ class AIOrchestrator:
         request: ChatRequest,
     ) -> AsyncGenerator[str, None]:
         """Streams chat tokens using SSE (Server-Sent Events) and saves final output."""
-        # Step 1: Initialize conversation & save user message in a session
         async with AsyncSessionLocal() as init_db:
             conversation = await self.get_or_create_conversation(
                 db=init_db,
@@ -185,10 +228,67 @@ class AIOrchestrator:
             history = await self.get_conversation_history(init_db, conv_id, limit=8)
             mode = request.personality_mode or conversation.personality_mode
 
+            # Tool intent detection
+            tool_action_context = ""
+            tool_intent = ToolIntentDetector.detect(request.message)
+            if tool_intent:
+                tool_name, tool_params = tool_intent
+                tool_res = await tool_registry.execute_tool(tool_name, tool_params, db=init_db)
+                if tool_res.get("status") == "approval_required":
+                    approval = tool_res["approval"]
+                    token = approval.get("token")
+                    reason = approval.get("reason")
+                    approval_text = (
+                        f"I need your approval before executing `{tool_name}`: {reason}\n\n"
+                        f"<!-- APPROVAL_TOKEN:{token} TOOL:{tool_name} -->"
+                    )
+                    assistant_msg_id = str(uuid.uuid4())
+                    start_payload = {
+                        "type": "start",
+                        "conversation_id": conv_id,
+                        "message_id": assistant_msg_id,
+                        "model_used": "nero:tool-permission",
+                    }
+                    yield f"data: {json.dumps(start_payload)}\n\n"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': approval_text})}\n\n"
+
+                    # Save and finish
+                    async with AsyncSessionLocal() as save_db:
+                        save_db.add(Message(
+                            id=assistant_msg_id,
+                            conversation_id=conv_id,
+                            role="assistant",
+                            content=approval_text,
+                            model_used="nero:tool-permission",
+                        ))
+                        await save_db.commit()
+
+                    done_payload = {
+                        "type": "done",
+                        "conversation_id": conv_id,
+                        "message_id": assistant_msg_id,
+                        "model_used": "nero:tool-permission",
+                        "response": approval_text,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "approval": approval,
+                    }
+                    yield f"data: {json.dumps(done_payload)}\n\n"
+                    return
+
+                elif tool_res.get("status") == "success":
+                    tool_action_context = (
+                        f"\n\n[LIVE DESKTOP TOOL RESULT]:\n"
+                        f"Tool: {tool_name}\n"
+                        f"Output: {json.dumps(tool_res.get('result', {}))}\n"
+                        f"Synthesize this live data and respond to the user naturally."
+                    )
+
         system_prompt = self.personality.build_system_prompt(
             mode=mode,
             user_message=request.message,
         )
+        if tool_action_context:
+            system_prompt += tool_action_context
 
         # Retrieve relevant memories and inject into prompt
         try:
@@ -198,13 +298,13 @@ class AIOrchestrator:
                 if mem_lines:
                     system_prompt += f"\n\n[RECALLED USER MEMORIES & CONTEXT]:\n{mem_lines}\nUse these recalled user context details to personalize your answers naturally."
         except Exception as e:
-            logger.warning(f"Stream memory retrieval notice: {e}")
+            logger.warning("Stream memory retrieval notice: %s", e)
 
         # Auto-extract new memory candidates in background
         try:
             await memory_manager.process_chat_message_for_memories(request.message, user_id=DEFAULT_USER_ID)
         except Exception as e:
-            logger.warning(f"Stream memory extraction notice: {e}")
+            logger.warning("Stream memory extraction notice: %s", e)
 
         provider = await self.router.select_provider()
         model_name = f"{provider.name}:{provider.default_model}"
@@ -240,7 +340,7 @@ class AIOrchestrator:
 
         full_text = "".join(accumulated_chunks)
 
-        # Step 2: Save completed assistant message to database
+        # Save completed assistant message to database
         async with AsyncSessionLocal() as save_db:
             assistant_msg = Message(
                 id=assistant_msg_id,

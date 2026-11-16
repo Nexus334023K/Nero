@@ -83,7 +83,7 @@ class ActivityLog(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     action_type: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    metadata: Mapped[str] = mapped_column(Text, nullable=True, default="{}")  # JSON string
+    action_metadata: Mapped[str] = mapped_column("metadata", Text, nullable=True, default="{}")  # JSON string
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

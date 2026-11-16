@@ -36,12 +36,12 @@ _DEFAULT_AI_PROVIDERS = [
 ]
 
 _DEFAULT_TOOL_PERMISSIONS = [
-    {"tool_name": "get_system_time", "permission_level": "auto", "is_enabled": True},
-    {"tool_name": "read_system_status", "permission_level": "auto", "is_enabled": True},
-    {"tool_name": "launch_application", "permission_level": "permission_required", "is_enabled": True},
-    {"tool_name": "create_file", "permission_level": "permission_required", "is_enabled": True},
+    {"tool_name": "system_monitor", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "launch_application", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "volume_control", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "file_manager", "permission_level": "permission_required", "is_enabled": True},
     {"tool_name": "delete_file", "permission_level": "explicit_confirmation", "is_enabled": True},
-    {"tool_name": "execute_command", "permission_level": "explicit_confirmation", "is_enabled": True},
+    {"tool_name": "execute_command", "permission_level": "explicit_confirmation", "is_enabled": False},
 ]
 
 

@@ -5,6 +5,7 @@ import { Dashboard } from './features/dashboard/Dashboard';
 import { ChatView } from './features/chat/ChatView';
 import { VoiceView } from './features/voice/VoiceView';
 import { MemoryView } from './features/memory/MemoryView';
+import { AutomationsView } from './features/automations/AutomationsView';
 import { SettingsView } from './features/settings/SettingsView';
 import { wsService } from './services/websocket';
 import { api } from './services/api';
@@ -48,6 +49,7 @@ export function App() {
           <Route path="/chat" element={<ChatView />} />
           <Route path="/voice" element={<VoiceView />} />
           <Route path="/memory" element={<MemoryView />} />
+          <Route path="/automations" element={<AutomationsView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -48,6 +48,18 @@ function MemoryIcon() {
   );
 }
 
+function AutomationsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+      <polyline points="7 9 10 12 7 15" />
+      <line x1="13" y1="15" x2="17" y2="15" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -71,6 +83,7 @@ const NAV_ITEMS: NavItemDef[] = [
   { id: 'chat', label: 'Chat', path: '/chat', icon: <ChatIcon /> },
   { id: 'voice', label: 'Voice', path: '/voice', icon: <VoiceIcon /> },
   { id: 'memory', label: 'Memory', path: '/memory', icon: <MemoryIcon /> },
+  { id: 'automations', label: 'Automations', path: '/automations', icon: <AutomationsIcon /> },
   { id: 'settings', label: 'Settings', path: '/settings', icon: <SettingsIcon /> },
 ];
 

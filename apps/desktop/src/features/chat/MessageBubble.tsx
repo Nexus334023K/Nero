@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { voiceService } from '../../services/voice';
+import { ToolApprovalCard } from './ToolApprovalCard';
 import type { Message } from '../../types';
 
 interface MessageBubbleProps {
@@ -7,9 +8,20 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
+function parseApprovalToken(content: string): { token: string; toolName: string } | null {
+  const match = content.match(/<!--\s*APPROVAL_TOKEN:(\S+)\s+TOOL:(\S+)\s*-->/);
+  if (match && match[1] && match[2]) {
+    return { token: match[1], toolName: match[2] };
+  }
+  return null;
+}
+
 function formatContent(content: string) {
+  // Strip approval comment from displayed text
+  const cleanContent = content.replace(/<!--\s*APPROVAL_TOKEN:\S+\s+TOOL:\S+\s*-->/g, '').trim();
+
   // Simple markdown-like formatting for code blocks
-  const parts = content.split(/(```[\s\S]*?```)/g);
+  const parts = cleanContent.split(/(```[\s\S]*?```)/g);
 
   return parts.map((part, index) => {
     if (part.startsWith('```') && part.endsWith('```')) {
@@ -61,6 +73,8 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
     }
   })();
 
+  const approvalInfo = !isUser ? parseApprovalToken(message.content) : null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10, x: isUser ? 10 : -10 }}
@@ -85,6 +99,12 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
           {message.content ? (
             <>
               {formatContent(message.content)}
+              {approvalInfo && (
+                <ToolApprovalCard
+                  token={approvalInfo.token}
+                  toolName={approvalInfo.toolName}
+                />
+              )}
               {isStreaming && (
                 <span className="inline-block w-1.5 h-3.5 bg-nero-cyan ml-1 animate-pulse align-middle" />
               )}

@@ -1,6 +1,6 @@
 import json
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,7 +62,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             if msg.get("type") == "ping":
                 await manager.send_json(
-                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                    {"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()},
                     websocket,
                 )
             else:

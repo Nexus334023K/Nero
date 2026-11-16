@@ -1,3 +1,11 @@
+import type {
+  SystemStats,
+  DesktopApp,
+  ToolDefinition,
+  PendingApproval,
+  ToolExecutionResult,
+} from '../types/tools';
+
 const BASE_URL = 'http://localhost:8765/api';
 
 export class ApiError extends Error {
@@ -295,5 +303,39 @@ export const api = {
         vector_store_ready: boolean;
         memory_enabled: boolean;
       }>('/memory/stats'),
+  },
+  tools: {
+    list: () => request<{ tools: ToolDefinition[] }>('/tools'),
+    getApps: () => request<{ apps: DesktopApp[] }>('/tools/apps'),
+    getSystemStats: () => request<SystemStats>('/tools/system/stats'),
+    getPendingApprovals: () => request<{ pending_approvals: PendingApproval[] }>('/tools/pending-approvals'),
+    execute: (toolName: string, params: Record<string, unknown> = {}, approvalToken?: string) =>
+      request<ToolExecutionResult>('/tools/execute', {
+        method: 'POST',
+        body: JSON.stringify({
+          tool_name: toolName,
+          params,
+          approval_token: approvalToken || null,
+        }),
+      }),
+    approve: (token: string, decision: 'allow_once' | 'always_allow' | 'deny') =>
+      request<{
+        status: string;
+        decision: string;
+        token: string;
+        tool?: string;
+        execution?: ToolExecutionResult;
+      }>('/tools/approve', {
+        method: 'POST',
+        body: JSON.stringify({ token, decision }),
+      }),
+    updatePermission: (toolName: string, permissionLevel: string, isEnabled: boolean = true) =>
+      request<{ tool_name: string; permission_level: string; is_enabled: boolean }>(
+        `/tools/${toolName}/permission`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ permission_level: permissionLevel, is_enabled: isEnabled }),
+        },
+      ),
   },
 };

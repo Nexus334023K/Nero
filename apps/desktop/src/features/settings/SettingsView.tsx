@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { useToolsStore } from '../../stores/toolsStore';
 import { voiceService } from '../../services/voice';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -240,6 +241,7 @@ export function SettingsView() {
     speed,
     setSpeed,
   } = useVoiceStore();
+  const { tools, fetchTools, updateToolPermission } = useToolsStore();
   const [providers, setProviders] = useState<ProviderItem[]>([]);
   const [activeProviderName, setActiveProviderName] = useState<string>('offline');
   const [fishApiKey, setFishApiKey] = useState('');
@@ -301,7 +303,8 @@ export function SettingsView() {
 
   useEffect(() => {
     void loadProviders();
-  }, []);
+    void fetchTools();
+  }, [fetchTools]);
 
   const handleProviderSave = async (
     providerId: string,
@@ -613,6 +616,76 @@ export function SettingsView() {
                 Save Voice Settings
               </Button>
             </div>
+          </div>
+        </Card>
+      </section>
+
+      {/* Desktop Tools & Security Policies */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-nero-muted">
+            Desktop Automation & Security Policies
+          </h2>
+          <span className="text-[11px] font-mono text-nero-cyan">Phase 5</span>
+        </div>
+        <Card className="flex flex-col gap-3" animate={false}>
+          <p className="text-xs text-nero-muted leading-relaxed">
+            Control the permission level for each tool. In &lsquo;Auto&rsquo; mode, actions execute
+            immediately. In &lsquo;Permission Required&rsquo; or &lsquo;Explicit Confirmation&rsquo;, NERO
+            will request your interactive approval before executing.
+          </p>
+
+          <div className="overflow-x-auto mt-1">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-white/10 text-nero-muted font-mono">
+                  <th className="pb-2">Tool</th>
+                  <th className="pb-2">Description</th>
+                  <th className="pb-2">Permission Tier</th>
+                  <th className="pb-2 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {tools.map((t) => (
+                  <tr key={t.name}>
+                    <td className="py-2.5 font-mono text-nero-cyan font-medium">{t.name}</td>
+                    <td className="py-2.5 text-nero-muted max-w-xs">{t.description}</td>
+                    <td className="py-2.5">
+                      <select
+                        value={t.configured_permission}
+                        onChange={(e) =>
+                          void updateToolPermission(t.name, e.target.value, t.is_enabled)
+                        }
+                        className="px-2 py-1 rounded bg-white/5 border border-white/10 font-mono text-[11px] text-nero-text focus:outline-none focus:border-nero-cyan"
+                      >
+                        <option value="auto">Auto (Immediate)</option>
+                        <option value="permission_required">Permission Required</option>
+                        <option value="explicit_confirmation">Explicit Confirmation</option>
+                      </select>
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void updateToolPermission(
+                            t.name,
+                            t.configured_permission,
+                            !t.is_enabled,
+                          )
+                        }
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-mono transition-colors ${
+                          t.is_enabled
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-white/5 text-nero-muted'
+                        }`}
+                      >
+                        {t.is_enabled ? 'Enabled' : 'Disabled'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       </section>
