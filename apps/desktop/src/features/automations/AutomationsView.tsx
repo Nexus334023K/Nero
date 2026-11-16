@@ -19,7 +19,7 @@ export function AutomationsView() {
     updateToolPermission,
   } = useToolsStore();
 
-  const [activeTab, setActiveTab] = useState<'launcher' | 'system' | 'files' | 'permissions'>('launcher');
+  const [activeTab, setActiveTab] = useState<'launcher' | 'system' | 'files' | 'research' | 'developer' | 'permissions'>('launcher');
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [fsPath, setFsPath] = useState<string>('D:\\Nero');
   const [fsEntries, setFsEntries] = useState<Array<{ name: string; is_dir: boolean; size_bytes: number }>>([]);
@@ -27,6 +27,21 @@ export function AutomationsView() {
   const [selectedFileContent, setSelectedFileContent] = useState<string | null>(null);
   const [volumeLevel, setVolumeLevel] = useState<number>(50);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  // Web Research state
+  const [webQuery, setWebQuery] = useState('latest typescript features');
+  const [webSearchResults, setWebSearchResults] = useState<Array<{ title: string; snippet: string; url: string }>>([]);
+  const [isSearchingWeb, setIsSearchingWeb] = useState(false);
+  const [readerUrl, setReaderUrl] = useState('https://raw.githubusercontent.com');
+  const [readerContent, setReaderContent] = useState<{ title: string; content: string } | null>(null);
+  const [isReadingUrl, setIsReadingUrl] = useState(false);
+
+  // Developer Companion state
+  const [devRepoPath, setDevRepoPath] = useState('D:\\Nero');
+  const [gitStatus, setGitStatus] = useState<{ branch: string; is_clean: boolean; changed_files: string[] } | null>(null);
+  const [gitCommits, setGitCommits] = useState<string[]>([]);
+  const [projectInfo, setProjectInfo] = useState<{ tech_stack: string[]; total_files: number; top_extensions: Record<string, number> } | null>(null);
+  const [isAnalyzingDev, setIsAnalyzingDev] = useState(false);
 
   useEffect(() => {
     void fetchSystemStats();
@@ -105,6 +120,47 @@ export function AutomationsView() {
     }
   };
 
+  const handleWebSearch = async () => {
+    if (!webQuery.trim()) return;
+    setIsSearchingWeb(true);
+    const res = await executeTool('web_search', { query: webQuery.trim() });
+    setIsSearchingWeb(false);
+    if (res.status === 'success' && res.result?.output) {
+      const out = res.result.output as { results: Array<{ title: string; snippet: string; url: string }> };
+      setWebSearchResults(out.results || []);
+    }
+  };
+
+  const handleReadWebUrl = async () => {
+    if (!readerUrl.trim()) return;
+    setIsReadingUrl(true);
+    const res = await executeTool('web_reader', { url: readerUrl.trim() });
+    setIsReadingUrl(false);
+    if (res.status === 'success' && res.result?.output) {
+      const out = res.result.output as { title: string; content: string };
+      setReaderContent(out);
+    }
+  };
+
+  const handleAnalyzeDev = async () => {
+    setIsAnalyzingDev(true);
+    const gitRes = await executeTool('git_analyzer', { action: 'status', repo_path: devRepoPath });
+    const logRes = await executeTool('git_analyzer', { action: 'log', repo_path: devRepoPath, limit: 5 });
+    const projRes = await executeTool('project_structure', { path: devRepoPath });
+    setIsAnalyzingDev(false);
+
+    if (gitRes.status === 'success' && gitRes.result?.output) {
+      setGitStatus(gitRes.result.output as { branch: string; is_clean: boolean; changed_files: string[] });
+    }
+    if (logRes.status === 'success' && logRes.result?.output) {
+      const out = logRes.result.output as { commits: string[] };
+      setGitCommits(out.commits || []);
+    }
+    if (projRes.status === 'success' && projRes.result?.output) {
+      setProjectInfo(projRes.result.output as { tech_stack: string[]; total_files: number; top_extensions: Record<string, number> });
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-nero-bg">
       {/* Header */}
@@ -157,6 +213,31 @@ export function AutomationsView() {
             }`}
           >
             File Explorer
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('research')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              activeTab === 'research'
+                ? 'bg-nero-cyan text-nero-bg font-semibold'
+                : 'text-nero-muted hover:text-nero-text'
+            }`}
+          >
+            Web Research
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('developer');
+              void handleAnalyzeDev();
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              activeTab === 'developer'
+                ? 'bg-nero-cyan text-nero-bg font-semibold'
+                : 'text-nero-muted hover:text-nero-text'
+            }`}
+          >
+            Developer
           </button>
           <button
             type="button"
@@ -549,6 +630,185 @@ export function AutomationsView() {
                   <pre className="p-2 rounded bg-black/50 text-[11px] font-mono text-nero-text max-h-48 overflow-y-auto whitespace-pre-wrap">
                     {selectedFileContent}
                   </pre>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Tab: Web Research */}
+        {activeTab === 'research' && (
+          <div className="flex flex-col gap-6">
+            <Card className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold text-nero-text font-mono">
+                Web Research & Information Retrieval
+              </h3>
+              <p className="text-xs text-nero-muted">
+                Search the web for technical documentation, library references, and real-time knowledge.
+              </p>
+
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="text"
+                  value={webQuery}
+                  onChange={(e) => setWebQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && void handleWebSearch()}
+                  className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs font-mono text-nero-text focus:outline-none focus:border-nero-cyan"
+                  placeholder="Enter research query or topic..."
+                />
+                <button
+                  type="button"
+                  disabled={isSearchingWeb}
+                  onClick={() => void handleWebSearch()}
+                  className="px-4 py-2 rounded-lg bg-nero-cyan text-nero-bg font-semibold text-xs hover:bg-nero-cyan/90 transition-colors disabled:opacity-50"
+                >
+                  {isSearchingWeb ? 'Searching...' : 'Search Web'}
+                </button>
+              </div>
+
+              {webSearchResults.length > 0 && (
+                <div className="flex flex-col gap-3 mt-3">
+                  <span className="text-[11px] font-mono text-nero-muted">
+                    Found {webSearchResults.length} research citations:
+                  </span>
+                  {webSearchResults.map((res, i) => (
+                    <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                      <h4 className="text-xs font-semibold text-nero-cyan">{res.title}</h4>
+                      <p className="text-xs text-nero-text leading-relaxed">{res.snippet}</p>
+                      <a
+                        href={res.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-nero-muted hover:text-nero-cyan font-mono truncate mt-1"
+                      >
+                        🔗 {res.url}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* URL Content Reader */}
+            <Card className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold text-nero-text font-mono">
+                Webpage Reader & Clean Text Extractor
+              </h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={readerUrl}
+                  onChange={(e) => setReaderUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs font-mono text-nero-text focus:outline-none focus:border-nero-cyan"
+                  placeholder="https://..."
+                />
+                <button
+                  type="button"
+                  disabled={isReadingUrl}
+                  onClick={() => void handleReadWebUrl()}
+                  className="px-4 py-2 rounded-lg bg-nero-cyan/15 text-nero-cyan border border-nero-cyan/30 text-xs font-medium hover:bg-nero-cyan/25 transition-colors disabled:opacity-50"
+                >
+                  {isReadingUrl ? 'Reading...' : 'Extract Content'}
+                </button>
+              </div>
+
+              {readerContent && (
+                <div className="mt-2 p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-nero-cyan font-mono">
+                    {readerContent.title}
+                  </span>
+                  <pre className="text-[11px] font-mono text-nero-text max-h-48 overflow-y-auto whitespace-pre-wrap mt-1">
+                    {readerContent.content}
+                  </pre>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Tab: Developer Companion */}
+        {activeTab === 'developer' && (
+          <div className="flex flex-col gap-6">
+            <Card className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-nero-text font-mono">
+                    Developer Workspace & Git Companion
+                  </h3>
+                  <p className="text-xs text-nero-muted">
+                    Analyze repository working tree, branch status, commit history, and stack layout.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isAnalyzingDev}
+                  onClick={() => void handleAnalyzeDev()}
+                  className="px-3.5 py-1.5 rounded-lg bg-nero-cyan text-nero-bg font-semibold text-xs hover:bg-nero-cyan/90 transition-colors disabled:opacity-50"
+                >
+                  {isAnalyzingDev ? 'Analyzing...' : 'Refresh Analysis'}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="text"
+                  value={devRepoPath}
+                  onChange={(e) => setDevRepoPath(e.target.value)}
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-mono text-nero-text focus:outline-none focus:border-nero-cyan"
+                  placeholder="Repository Path..."
+                />
+              </div>
+
+              {/* Git Status Overview */}
+              {gitStatus && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                    <span className="text-[10px] font-mono uppercase text-nero-muted">Active Branch</span>
+                    <span className="text-sm font-bold font-mono text-nero-cyan">{gitStatus.branch}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                    <span className="text-[10px] font-mono uppercase text-nero-muted">Tree State</span>
+                    <span className={`text-sm font-bold font-mono ${gitStatus.is_clean ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {gitStatus.is_clean ? 'Clean (0 changes)' : `Modified (${gitStatus.changed_files.length} files)`}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                    <span className="text-[10px] font-mono uppercase text-nero-muted">Detected Tech Stack</span>
+                    <span className="text-xs font-mono text-purple-300">
+                      {projectInfo?.tech_stack.join(', ') || 'Scanning...'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Commits */}
+              {gitCommits.length > 0 && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <span className="text-xs font-mono text-nero-muted uppercase">Recent Commits</span>
+                  <div className="flex flex-col gap-1.5 font-mono text-xs">
+                    {gitCommits.map((c, idx) => (
+                      <div key={idx} className="p-2 rounded-lg bg-black/40 border border-white/5 text-nero-text">
+                        {c}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tech Stack Breakdown */}
+              {projectInfo && (
+                <div className="mt-3 p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-nero-muted">Total Workspace Files</span>
+                    <span className="text-nero-cyan font-bold">{projectInfo.total_files}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {Object.entries(projectInfo.top_extensions).map(([ext, count]) => (
+                      <span key={ext} className="px-2 py-0.5 rounded text-[11px] font-mono bg-white/5 text-nero-text border border-white/5">
+                        {ext}: {count}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </Card>

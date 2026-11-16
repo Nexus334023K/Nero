@@ -10,6 +10,11 @@ from app.tools.desktop.app_launcher import AppLauncherTool
 from app.tools.desktop.file_manager import FileManagerTool
 from app.tools.desktop.system_monitor import SystemMonitorTool
 from app.tools.desktop.volume_control import VolumeControlTool
+from app.tools.developer.git_analyzer import GitAnalyzerTool
+from app.tools.developer.project_analyzer import ProjectStructureTool
+from app.tools.productivity.task_manager import TaskManagerTool
+from app.tools.research.web_reader import WebPageReaderTool
+from app.tools.research.web_search import WebSearchTool
 from app.tools.permissions import permission_manager
 
 logger = get_logger(__name__)
@@ -23,11 +28,16 @@ class ToolRegistry:
         self._register_default_tools()
 
     def _register_default_tools(self) -> None:
-        """Register the built-in desktop tools."""
+        """Register the built-in desktop, developer, research, and productivity tools."""
         self.register(SystemMonitorTool())
         self.register(AppLauncherTool())
         self.register(FileManagerTool())
         self.register(VolumeControlTool())
+        self.register(WebSearchTool())
+        self.register(WebPageReaderTool())
+        self.register(GitAnalyzerTool())
+        self.register(ProjectStructureTool())
+        self.register(TaskManagerTool())
         logger.info("Registered %d automation tools", len(self._tools))
 
     def register(self, tool: BaseTool) -> None:

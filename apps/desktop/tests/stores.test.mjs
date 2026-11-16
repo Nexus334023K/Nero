@@ -211,4 +211,53 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.equal(match[1], 'tok_test123');
     assert.equal(match[2], 'delete_file');
   });
+
+  await t.test('Phase 6 Advanced Capabilities & Productivity contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // Verify api.ts productivity endpoints
+    const apiContent = await fs.readFile(
+      path.resolve(__dirname, '../src/services/api.ts'),
+      'utf8'
+    );
+    assert.ok(apiContent.includes('/productivity/tasks'), 'Tasks endpoint referenced');
+    assert.ok(apiContent.includes('/productivity/projects'), 'Projects endpoint referenced');
+    assert.ok(apiContent.includes('/productivity/briefing'), 'Briefing endpoint referenced');
+
+    // Verify productivityStore
+    const storeContent = await fs.readFile(
+      path.resolve(__dirname, '../src/stores/productivityStore.ts'),
+      'utf8'
+    );
+    assert.ok(storeContent.includes('useProductivityStore'), 'useProductivityStore exported');
+    assert.ok(storeContent.includes('createTask'), 'createTask present');
+    assert.ok(storeContent.includes('fetchBriefing'), 'fetchBriefing present');
+
+    // Verify ProductivityView
+    const prodViewContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/productivity/ProductivityView.tsx'),
+      'utf8'
+    );
+    assert.ok(prodViewContent.includes('Productivity & Projects'), 'Productivity view title rendered');
+    assert.ok(prodViewContent.includes('Daily Briefing'), 'Daily Briefing section present');
+    assert.ok(prodViewContent.includes('Add New Task'), 'Add Task modal present');
+
+    // Verify AutomationsView research & developer tabs
+    const automationsContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/automations/AutomationsView.tsx'),
+      'utf8'
+    );
+    assert.ok(automationsContent.includes('Web Research'), 'Web research tab present');
+    assert.ok(automationsContent.includes('Developer Companion'), 'Developer companion tab present');
+
+    // Verify Sidebar navigation
+    const sidebarContent = await fs.readFile(
+      path.resolve(__dirname, '../src/components/layout/Sidebar.tsx'),
+      'utf8'
+    );
+    assert.ok(sidebarContent.includes("path: '/productivity'"), 'Productivity route in sidebar');
+  });
 });

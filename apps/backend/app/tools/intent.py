@@ -7,7 +7,10 @@ logger = get_logger(__name__)
 
 
 class ToolIntentDetector:
-    """Detects whether a natural language user query corresponds to a desktop tool action."""
+    """Detects whether a natural language user query corresponds to a desktop,
+
+    developer, web research, or productivity tool action.
+    """
 
     @staticmethod
     def detect(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
@@ -76,5 +79,52 @@ class ToolIntentDetector:
         if del_match:
             target_path = del_match.group(1).strip("\"'")
             return "file_manager", {"action": "delete_file", "path": target_path}
+
+        # 5. Web Research: Search & URL Reader
+        url_match = re.search(r"\b(?:read|summarize|fetch|inspect)\s+(?:url|website|webpage|page|site)?\s*(https?://[^\s]+)", text)
+        if url_match:
+            target_url = url_match.group(1).strip("\"'")
+            return "web_reader", {"url": target_url}
+
+        search_match = re.search(
+            r"\b(?:search\s+(?:the\s+)?(?:web|internet|online)\s+(?:for\s+)?|look\s+up\s+(?:online\s+)?|google\s+)(.+)",
+            text,
+        )
+        if search_match:
+            query = search_match.group(1).strip()
+            return "web_search", {"query": query}
+
+        # 6. Developer Companion: Git & Project Analysis
+        if re.search(r"\b(git\s+status|check\s+git|git\s+repo\s+status|git\s+changes)\b", text):
+            return "git_analyzer", {"action": "status", "repo_path": "D:\\Nero"}
+
+        if re.search(r"\b(git\s+log|recent\s+commits|git\s+history)\b", text):
+            return "git_analyzer", {"action": "log", "repo_path": "D:\\Nero"}
+
+        if re.search(r"\b(git\s+branch|current\s+branch|what\s+branch)\b", text):
+            return "git_analyzer", {"action": "status", "repo_path": "D:\\Nero"}
+
+        if re.search(r"\b(git\s+diff|uncommitted\s+diff)\b", text):
+            return "git_analyzer", {"action": "diff_stat", "repo_path": "D:\\Nero"}
+
+        if re.search(r"\b(analyze\s+(?:this\s+)?project|project\s+structure|scan\s+workspace|what\s+tech\s+stack)\b", text):
+            return "project_structure", {"path": "D:\\Nero"}
+
+        # 7. Productivity & Task Manager
+        if re.search(r"\b(daily\s+briefing|morning\s+briefing|what('s| is)\s+my\s+day\s+look\s+like|productivity\s+overview)\b", text):
+            return "task_manager", {"action": "daily_briefing"}
+
+        task_add_match = re.search(r"\b(?:add|create)\s+(?:a\s+)?task\s*[:\-]?\s*(.+)", text)
+        if task_add_match:
+            title = task_add_match.group(1).strip()
+            return "task_manager", {"action": "create_task", "title": title, "priority": "medium"}
+
+        remind_match = re.search(r"\bremind\s+me\s+to\s+(.+)", text)
+        if remind_match:
+            title = remind_match.group(1).strip()
+            return "task_manager", {"action": "create_task", "title": title, "priority": "high"}
+
+        if re.search(r"\b(show|list|what\s+are)\s+(?:my\s+)?tasks\b", text):
+            return "task_manager", {"action": "list_tasks", "status_filter": "pending"}
 
         return None

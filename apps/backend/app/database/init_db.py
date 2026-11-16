@@ -41,6 +41,11 @@ _DEFAULT_TOOL_PERMISSIONS = [
     {"tool_name": "volume_control", "permission_level": "auto", "is_enabled": True},
     {"tool_name": "file_manager", "permission_level": "permission_required", "is_enabled": True},
     {"tool_name": "delete_file", "permission_level": "explicit_confirmation", "is_enabled": True},
+    {"tool_name": "web_search", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "web_reader", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "git_analyzer", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "project_structure", "permission_level": "auto", "is_enabled": True},
+    {"tool_name": "task_manager", "permission_level": "auto", "is_enabled": True},
     {"tool_name": "execute_command", "permission_level": "explicit_confirmation", "is_enabled": False},
 ]
 

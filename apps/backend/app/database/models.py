@@ -23,6 +23,8 @@ class User(Base):
 
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user")
     memories: Mapped[list["Memory"]] = relationship(back_populates="user")
+    projects: Mapped[list["Project"]] = relationship(back_populates="user")
+    tasks: Mapped[list["Task"]] = relationship(back_populates="user")
 
 
 class Conversation(Base):
@@ -108,4 +110,55 @@ class ToolPermission(Base):
         String(50), nullable=False, default="permission_required"
     )  # auto/permission_required/explicit_confirmation
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    root_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="active"
+    )  # active/archived/completed
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="projects")
+    tasks: Mapped[list["Task"]] = relationship(back_populates="project")
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("projects.id"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    priority: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="medium"
+    )  # low/medium/high/urgent
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="pending"
+    )  # pending/in_progress/completed/cancelled
+    due_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="tasks")
+    project: Mapped["Project | None"] = relationship(back_populates="tasks")
+
 

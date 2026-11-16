@@ -5,6 +5,7 @@ import type {
   PendingApproval,
   ToolExecutionResult,
 } from '../types/tools';
+import type { TaskItem, ProjectItem, DailyBriefing } from '../types/productivity';
 
 const BASE_URL = 'http://localhost:8765/api';
 
@@ -337,5 +338,46 @@ export const api = {
           body: JSON.stringify({ permission_level: permissionLevel, is_enabled: isEnabled }),
         },
       ),
+  },
+  productivity: {
+    listTasks: (params?: { status?: string; priority?: string; project_id?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.set('status', params.status);
+      if (params?.priority) q.set('priority', params.priority);
+      if (params?.project_id) q.set('project_id', params.project_id);
+      const qs = q.toString();
+      return request<{ tasks: TaskItem[] }>(`/productivity/tasks${qs ? `?${qs}` : ''}`);
+    },
+    createTask: (data: {
+      title: string;
+      description?: string;
+      priority?: string;
+      project_id?: string;
+      due_date?: string;
+    }) =>
+      request<{ success: boolean; task: TaskItem }>('/productivity/tasks', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateTask: (taskId: string, data: Partial<TaskItem>) =>
+      request<{ success: boolean; task: TaskItem }>(`/productivity/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    deleteTask: (taskId: string) =>
+      request<{ success: boolean; id: string }>(`/productivity/tasks/${taskId}`, {
+        method: 'DELETE',
+      }),
+    listProjects: () => request<{ projects: ProjectItem[] }>('/productivity/projects'),
+    createProject: (data: { name: string; description?: string; root_path?: string }) =>
+      request<{ success: boolean; project: ProjectItem }>('/productivity/projects', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    deleteProject: (projectId: string) =>
+      request<{ success: boolean; id: string }>(`/productivity/projects/${projectId}`, {
+        method: 'DELETE',
+      }),
+    getBriefing: () => request<DailyBriefing>('/productivity/briefing'),
   },
 };
