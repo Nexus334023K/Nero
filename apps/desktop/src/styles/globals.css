@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --nero-bg: #0a0a0f;
+  --nero-cyan: #00d4ff;
+  --nero-blue: #1a2a4a;
+  --nero-text: #e2e8f0;
+  --nero-muted: #64748b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #0a0a0f;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,212,255,0.5); }
+
+/* Selection */
+::selection { background: rgba(0,212,255,0.2); }
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.glass-hover:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+/* Glow effects */
+.cyan-glow { box-shadow: 0 0 20px rgba(0,212,255,0.3); }
+.cyan-glow-sm { box-shadow: 0 0 10px rgba(0,212,255,0.2); }
+
+/* No drag on interactive elements */
+button, input, select, textarea { -webkit-app-region: no-drag; }
+
+/* Title bar drag region */
+.titlebar-drag { -webkit-app-region: drag; }

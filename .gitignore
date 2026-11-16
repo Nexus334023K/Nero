@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-electron/
+.env
+.env.local
+*.pyc
+__pycache__/
+.venv/
+apps/backend/.venv/
+apps/desktop/dist/
+apps/desktop/dist-electron/
+*.db
+*.sqlite
+release/
