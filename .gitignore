@@ -11,4 +11,5 @@ apps/desktop/dist/
 apps/desktop/dist-electron/
 *.db
 *.sqlite
+*chroma_db/
 release/

@@ -134,4 +134,30 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(voiceViewContent.includes('Fish Audio'), 'Fish audio referenced in VoiceView');
     assert.ok(voiceViewContent.includes('Push To Talk'), 'Push to talk supported');
   });
+
+  await t.test('Phase 4 Persistent Vector Memory & ChromaDB contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const apiContent = await fs.readFile(
+      path.resolve(__dirname, '../src/services/api.ts'),
+      'utf8'
+    );
+
+    assert.ok(apiContent.includes('/memory'), 'Memory base endpoint configured');
+    assert.ok(apiContent.includes('/memory/search'), 'Semantic search endpoint configured');
+    assert.ok(apiContent.includes('/memory/stats'), 'Memory stats endpoint configured');
+    assert.ok(apiContent.includes('/memory/clear'), 'Memory clear endpoint configured');
+
+    // Verify MemoryView component exists and references ChromaDB
+    const memoryViewContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/memory/MemoryView.tsx'),
+      'utf8'
+    );
+    assert.ok(memoryViewContent.includes('ChromaDB'), 'ChromaDB referenced in MemoryView');
+    assert.ok(memoryViewContent.includes('Semantic Vector Memory'), 'Semantic Vector Memory title rendered');
+    assert.ok(memoryViewContent.includes('long_term'), 'Long-term memory category supported');
+    assert.ok(memoryViewContent.includes('episodic'), 'Episodic memory category supported');
+  });
 });

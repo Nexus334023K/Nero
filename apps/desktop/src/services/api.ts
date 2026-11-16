@@ -239,4 +239,61 @@ export const api = {
         body: JSON.stringify({ text }),
       }),
   },
+  memory: {
+    list: (params?: { memory_type?: string; search?: string; limit?: number }) => {
+      const queryParams = new URLSearchParams();
+      if (params?.memory_type) queryParams.set('memory_type', params.memory_type);
+      if (params?.search) queryParams.set('search', params.search);
+      if (params?.limit) queryParams.set('limit', params.limit.toString());
+      const qs = queryParams.toString();
+      return request<{
+        memories: Array<{
+          id: string;
+          content: string;
+          importance: number;
+          memory_type: string;
+          tags: string[];
+          created_at: string;
+          accessed_at?: string;
+        }>;
+        count: number;
+      }>(`/memory${qs ? `?${qs}` : ''}`);
+    },
+    create: (data: { content: string; memory_type?: string; importance?: number; tags?: string[] }) =>
+      request<{
+        id: string;
+        content: string;
+        importance: number;
+        memory_type: string;
+        tags: string[];
+        created_at: string;
+      }>('/memory', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean; id: string }>(`/memory/${id}`, {
+        method: 'DELETE',
+      }),
+    search: (query: string, limit: number = 5, memory_type?: string) =>
+      request<{
+        results: Array<{ id: string; content: string; score: number; metadata: Record<string, unknown> }>;
+        query: string;
+      }>('/memory/search', {
+        method: 'POST',
+        body: JSON.stringify({ query, limit, memory_type }),
+      }),
+    clear: () =>
+      request<{ success: boolean; message: string }>('/memory/clear', {
+        method: 'POST',
+      }),
+    stats: () =>
+      request<{
+        total_memories: number;
+        long_term_count: number;
+        episodic_count: number;
+        vector_store_ready: boolean;
+        memory_enabled: boolean;
+      }>('/memory/stats'),
+  },
 };

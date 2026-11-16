@@ -11,6 +11,7 @@ from app.database.models import Conversation, Message, User
 from app.database.session import AsyncSessionLocal
 from app.intelligence.personality.engine import personality_engine
 from app.intelligence.router import ai_router
+from app.memory.manager import memory_manager
 from app.schemas.chat import ChatRequest, ChatResponse
 
 logger = get_logger(__name__)
@@ -111,6 +112,22 @@ class AIOrchestrator:
             user_message=request.message,
         )
 
+        # Retrieve relevant memories and inject into prompt
+        try:
+            memories = await memory_manager.semantic_search(request.message, user_id=DEFAULT_USER_ID, limit=3)
+            if memories:
+                mem_lines = "\n".join([f"- {m['content']}" for m in memories if m.get("content")])
+                if mem_lines:
+                    system_prompt += f"\n\n[RECALLED USER MEMORIES & CONTEXT]:\n{mem_lines}\nUse these recalled user context details to personalize your answers naturally."
+        except Exception as e:
+            logger.warning(f"Memory retrieval notice: {e}")
+
+        # Auto-extract new memory candidates in background
+        try:
+            await memory_manager.process_chat_message_for_memories(request.message, user_id=DEFAULT_USER_ID)
+        except Exception as e:
+            logger.warning(f"Memory extraction notice: {e}")
+
         provider = await self.router.select_provider()
         model_name = f"{provider.name}:{provider.default_model}"
 
@@ -172,6 +189,22 @@ class AIOrchestrator:
             mode=mode,
             user_message=request.message,
         )
+
+        # Retrieve relevant memories and inject into prompt
+        try:
+            memories = await memory_manager.semantic_search(request.message, user_id=DEFAULT_USER_ID, limit=3)
+            if memories:
+                mem_lines = "\n".join([f"- {m['content']}" for m in memories if m.get("content")])
+                if mem_lines:
+                    system_prompt += f"\n\n[RECALLED USER MEMORIES & CONTEXT]:\n{mem_lines}\nUse these recalled user context details to personalize your answers naturally."
+        except Exception as e:
+            logger.warning(f"Stream memory retrieval notice: {e}")
+
+        # Auto-extract new memory candidates in background
+        try:
+            await memory_manager.process_chat_message_for_memories(request.message, user_id=DEFAULT_USER_ID)
+        except Exception as e:
+            logger.warning(f"Stream memory extraction notice: {e}")
 
         provider = await self.router.select_provider()
         model_name = f"{provider.name}:{provider.default_model}"
