@@ -170,4 +170,73 @@ export const api = {
         body: JSON.stringify({ mode }),
       }),
   },
+  voice: {
+    tts: async (text: string, provider?: string, voiceId?: string, speed: number = 1.0): Promise<Blob> => {
+      const res = await fetch(`${BASE_URL}/voice/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, provider, voice_id: voiceId, speed }),
+      });
+      if (!res.ok) {
+        throw new ApiError(res.status, `TTS error: ${res.status} ${res.statusText}`);
+      }
+      return res.blob();
+    },
+    stt: async (audioBlob: Blob): Promise<{ text: string; confidence: number; language: string; duration_seconds: number }> => {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'recording.wav');
+      const res = await fetch(`${BASE_URL}/voice/stt`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        throw new ApiError(res.status, `STT error: ${res.status} ${res.statusText}`);
+      }
+      return res.json();
+    },
+    getSettings: () =>
+      request<{
+        tts_provider: string;
+        stt_provider: string;
+        wake_word_enabled: boolean;
+        wake_word: string;
+        fish_audio_api_key?: string;
+        fish_audio_reference_id?: string;
+        elevenlabs_api_key?: string;
+        elevenlabs_voice_id?: string;
+        piper_voice: string;
+        speed: number;
+      }>('/voice/settings'),
+    updateSettings: (settings: Record<string, unknown>) =>
+      request<{
+        tts_provider: string;
+        stt_provider: string;
+        wake_word_enabled: boolean;
+        wake_word: string;
+        fish_audio_api_key?: string;
+        fish_audio_reference_id?: string;
+        elevenlabs_api_key?: string;
+        elevenlabs_voice_id?: string;
+        piper_voice: string;
+        speed: number;
+      }>('/voice/settings', {
+        method: 'POST',
+        body: JSON.stringify(settings),
+      }),
+    getVoices: () =>
+      request<{
+        voices: Array<{
+          id: string;
+          name: string;
+          provider: string;
+          language: string;
+          description?: string;
+        }>;
+      }>('/voice/voices'),
+    checkWakeword: (text: string) =>
+      request<{ detected: boolean; target: string }>('/voice/wakeword/check', {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }),
+  },
 };

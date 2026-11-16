@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { voiceService } from '../../services/voice';
 import type { Message } from '../../types';
 
 interface MessageBubbleProps {
@@ -102,6 +103,20 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
         <span className="text-[10px] text-nero-muted font-mono">{formattedTime}</span>
         {message.model_used && (
           <span className="text-[9px] text-nero-muted/70 font-mono">[{message.model_used}]</span>
+        )}
+        {!isUser && message.content && (
+          <button
+            type="button"
+            onClick={() => void voiceService.speak(message.content)}
+            className="text-[10px] text-nero-muted hover:text-nero-cyan transition-colors flex items-center gap-1 cursor-pointer"
+            title="Listen to message (Fish Audio / TTS)"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+            </svg>
+            <span>Play</span>
+          </button>
         )}
       </div>
     </motion.div>

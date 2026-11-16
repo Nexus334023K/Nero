@@ -109,4 +109,29 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(tailwindContent.includes('#00d4ff'), 'Electric cyan accent defined');
     assert.ok(tailwindContent.includes('#1a2a4a'), 'Deep blue secondary defined');
   });
+
+  await t.test('Phase 3 Voice Intelligence API & Fish Audio contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const apiContent = await fs.readFile(
+      path.resolve(__dirname, '../src/services/api.ts'),
+      'utf8'
+    );
+
+    assert.ok(apiContent.includes('/voice/tts'), 'TTS synthesis endpoint configured');
+    assert.ok(apiContent.includes('/voice/stt'), 'STT transcription endpoint configured');
+    assert.ok(apiContent.includes('/voice/settings'), 'Voice settings endpoint configured');
+    assert.ok(apiContent.includes('/voice/voices'), 'Voice listing endpoint configured');
+    assert.ok(apiContent.includes('fish_audio_api_key'), 'Fish audio API key schema supported');
+
+    // Verify VoiceView file exists
+    const voiceViewContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/voice/VoiceView.tsx'),
+      'utf8'
+    );
+    assert.ok(voiceViewContent.includes('Fish Audio'), 'Fish audio referenced in VoiceView');
+    assert.ok(voiceViewContent.includes('Push To Talk'), 'Push to talk supported');
+  });
 });

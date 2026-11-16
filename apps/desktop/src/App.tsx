@@ -3,32 +3,11 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { ChatView } from './features/chat/ChatView';
+import { VoiceView } from './features/voice/VoiceView';
 import { SettingsView } from './features/settings/SettingsView';
 import { wsService } from './services/websocket';
 import { api } from './services/api';
 import { useAppStore } from './stores/appStore';
-
-function VoicePlaceholder() {
-  return (
-    <div className="h-full w-full flex flex-col items-center justify-center p-8 text-center bg-nero-bg">
-      <div className="w-16 h-16 rounded-2xl bg-nero-cyan/10 border border-nero-cyan/30 flex items-center justify-center mb-4 cyan-glow">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nero-cyan">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-          <line x1="12" y1="19" x2="12" y2="23" />
-          <line x1="8" y1="23" x2="16" y2="23" />
-        </svg>
-      </div>
-      <h2 className="text-xl font-bold text-nero-text mb-2">Voice Conversation Mode</h2>
-      <p className="text-sm text-nero-muted max-w-md">
-        Real-time audio streaming powered by ElevenLabs and whisper speech-to-text is currently being integrated into this panel.
-      </p>
-      <span className="mt-4 px-3 py-1 text-xs font-mono text-nero-cyan bg-nero-cyan/10 border border-nero-cyan/30 rounded-full">
-        Coming Soon
-      </span>
-    </div>
-  );
-}
 
 function MemoryPlaceholder() {
   return (
@@ -87,7 +66,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<ChatView />} />
-          <Route path="/voice" element={<VoicePlaceholder />} />
+          <Route path="/voice" element={<VoiceView />} />
           <Route path="/memory" element={<MemoryPlaceholder />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/appStore';
+import { useVoiceStore } from '../../stores/voiceStore';
+import { voiceService } from '../../services/voice';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { api, type ProviderItem } from '../../services/api';
@@ -229,8 +231,61 @@ function ProviderConfigCard({
 
 export function SettingsView() {
   const { personalityMode, setPersonalityMode, backendStatus, wsStatus } = useAppStore();
+  const {
+    ttsProvider,
+    setTtsProvider,
+    activeVoiceId,
+    wakeWordEnabled,
+    setWakeWordEnabled,
+    speed,
+    setSpeed,
+  } = useVoiceStore();
   const [providers, setProviders] = useState<ProviderItem[]>([]);
   const [activeProviderName, setActiveProviderName] = useState<string>('offline');
+  const [fishApiKey, setFishApiKey] = useState('');
+  const [fishRefId, setFishRefId] = useState('');
+  const [elevenApiKey, setElevenApiKey] = useState('');
+  const [voiceSaveStatus, setVoiceSaveStatus] = useState<string | null>(null);
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+
+  useEffect(() => {
+    api.voice
+      .getSettings()
+      .then((s) => {
+        if (s) {
+          if (s.tts_provider) setTtsProvider(s.tts_provider);
+          if (s.fish_audio_api_key) setFishApiKey(s.fish_audio_api_key);
+          if (s.fish_audio_reference_id) setFishRefId(s.fish_audio_reference_id);
+          if (s.elevenlabs_api_key) setElevenApiKey(s.elevenlabs_api_key);
+          if (s.wake_word_enabled !== undefined) setWakeWordEnabled(s.wake_word_enabled);
+          if (s.speed) setSpeed(s.speed);
+        }
+      })
+      .catch(() => {});
+  }, [setTtsProvider, setWakeWordEnabled, setSpeed]);
+
+  const handleSaveVoiceSettings = async () => {
+    try {
+      await api.voice.updateSettings({
+        tts_provider: ttsProvider,
+        fish_audio_api_key: fishApiKey,
+        fish_audio_reference_id: fishRefId,
+        elevenlabs_api_key: elevenApiKey,
+        wake_word_enabled: wakeWordEnabled,
+        speed,
+      });
+      setVoiceSaveStatus('Saved!');
+      setTimeout(() => setVoiceSaveStatus(null), 3000);
+    } catch {
+      setVoiceSaveStatus('Error saving');
+    }
+  };
+
+  const handleTestVoice = async () => {
+    setIsTestingVoice(true);
+    await voiceService.speak('NERO voice engine test. Speech synthesis verified.', ttsProvider, activeVoiceId);
+    setIsTestingVoice(false);
+  };
 
   const loadProviders = async () => {
     try {
@@ -412,6 +467,154 @@ export function SettingsView() {
             );
           })}
         </div>
+      </section>
+
+      {/* Voice Intelligence & Fish Audio Section */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-mono uppercase tracking-widest text-nero-muted">
+            Voice Intelligence & Speech Synthesis
+          </h2>
+          {voiceSaveStatus && (
+            <span className="text-xs font-mono text-emerald-400 font-semibold">{voiceSaveStatus}</span>
+          )}
+        </div>
+
+        <Card className="flex flex-col gap-5" animate={false}>
+          {/* TTS Provider Selector */}
+          <div>
+            <label className="text-[10px] font-mono uppercase text-nero-muted block mb-2">
+              Primary Speech Synthesis Engine (TTS)
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { id: 'fish_audio', label: 'Fish Audio', badge: 'Cloud Neural' },
+                { id: 'piper', label: 'Piper TTS', badge: 'Local Neural' },
+                { id: 'elevenlabs', label: 'ElevenLabs', badge: 'Cloud' },
+                { id: 'mock', label: 'Offline Waveform', badge: 'Local Built-in' },
+              ].map((prov) => {
+                const isSelected = ttsProvider === prov.id;
+                return (
+                  <button
+                    key={prov.id}
+                    type="button"
+                    onClick={() => setTtsProvider(prov.id)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      isSelected
+                        ? 'border-nero-cyan bg-nero-cyan/15 cyan-glow-sm'
+                        : 'border-white/5 bg-white/2 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-nero-text mb-0.5">{prov.label}</div>
+                    <div className="text-[10px] text-nero-cyan/80 font-mono">{prov.badge}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Fish Audio Settings */}
+          {ttsProvider === 'fish_audio' && (
+            <div className="p-4 rounded-xl border border-nero-cyan/20 bg-nero-cyan/5 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-nero-cyan font-mono uppercase tracking-wider">
+                  Fish Audio Configuration
+                </span>
+                <span className="text-[10px] text-nero-muted">Ultra-fast Neural Streaming</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-nero-muted block mb-1">
+                    Fish Audio API Key
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter Fish Audio API Key..."
+                    value={fishApiKey}
+                    onChange={(e) => setFishApiKey(e.target.value)}
+                    className="w-full text-xs font-mono bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-nero-text focus:border-nero-cyan/50 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono uppercase text-nero-muted block mb-1">
+                    Voice Reference ID (Model ID)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 54f224d5500e482390f77977a41496d0"
+                    value={fishRefId}
+                    onChange={(e) => setFishRefId(e.target.value)}
+                    className="w-full text-xs font-mono bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-nero-text focus:border-nero-cyan/50 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ElevenLabs Settings */}
+          {ttsProvider === 'elevenlabs' && (
+            <div className="p-4 rounded-xl border border-white/10 bg-white/5 flex flex-col gap-3">
+              <span className="text-xs font-bold text-nero-text font-mono uppercase">
+                ElevenLabs Configuration
+              </span>
+              <div>
+                <label className="text-[10px] font-mono uppercase text-nero-muted block mb-1">
+                  API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="xi-api-key..."
+                  value={elevenApiKey}
+                  onChange={(e) => setElevenApiKey(e.target.value)}
+                  className="w-full text-xs font-mono bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-nero-text focus:border-nero-cyan/50 outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Hands-Free Wake-Word & Speed Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 border-t border-white/5">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
+              <div>
+                <div className="text-xs font-semibold text-nero-text">Hands-Free Wake Word</div>
+                <div className="text-[10px] text-nero-muted font-mono">Triggers on "Hey NERO"</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
+                className={`px-3 py-1 rounded text-xs font-medium font-mono transition-colors ${
+                  wakeWordEnabled
+                    ? 'bg-nero-success/20 text-nero-success border border-nero-success/40'
+                    : 'bg-white/10 text-nero-muted'
+                }`}
+              >
+                {wakeWordEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleTestVoice}
+                disabled={isTestingVoice}
+                className="flex-1 justify-center text-xs"
+              >
+                {isTestingVoice ? 'Playing...' : 'Test Voice Audio'}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveVoiceSettings}
+                className="flex-1 justify-center text-xs"
+              >
+                Save Voice Settings
+              </Button>
+            </div>
+          </div>
+        </Card>
       </section>
 
       {/* Connection Section */}

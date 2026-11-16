@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAppStore } from '../../stores/appStore';
+import { useVoiceStore } from '../../stores/voiceStore';
+import { voiceService } from '../../services/voice';
 import { api, type StreamDonePayload } from '../../services/api';
 import type { Message } from '../../types';
 
@@ -117,19 +119,33 @@ export function MessageInput() {
           className="flex-1 bg-transparent resize-none outline-none text-sm text-nero-text placeholder:text-nero-muted max-h-36 py-1"
         />
 
-        {/* Microphone placeholder button */}
+        {/* Active Microphone / STT button */}
         <div className="relative group">
           <button
             type="button"
-            className="p-2 text-nero-muted hover:text-nero-text rounded-lg hover:bg-white/5 transition-colors disabled:opacity-40"
+            onClick={async () => {
+              if (useVoiceStore.getState().isRecording) {
+                const text = await voiceService.stopRecording();
+                if (text) {
+                  setContent((prev) => (prev ? `${prev} ${text}` : text));
+                }
+              } else {
+                await voiceService.startRecording();
+              }
+            }}
+            className={`p-2 rounded-lg transition-all ${
+              useVoiceStore((s) => s.isRecording)
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse'
+                : 'text-nero-muted hover:text-nero-text hover:bg-white/5'
+            } disabled:opacity-40`}
             disabled={isLoading}
-            title="Voice coming soon"
+            title={useVoiceStore((s) => s.isRecording) ? 'Stop voice recording' : 'Speak with microphone'}
           >
             <svg
               width="16"
               height="16"
               viewBox="0 0 24 24"
-              fill="none"
+              fill={useVoiceStore((s) => s.isRecording) ? 'currentColor' : 'none'}
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
@@ -142,7 +158,7 @@ export function MessageInput() {
             </svg>
           </button>
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-[#11111a] border border-white/10 text-[10px] text-nero-text px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none z-10">
-            Voice coming soon
+            {useVoiceStore((s) => s.isRecording) ? 'Click to stop & transcribe' : 'Speech-to-Text'}
           </div>
         </div>
 
