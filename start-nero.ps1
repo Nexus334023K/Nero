@@ -17,6 +17,14 @@ if (-not (Test-Path $PythonExe)) {
     exit 1
 }
 
+# Check and release port 8765 if a lingering backend process is running
+$existingConn = Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue
+if ($existingConn) {
+    Write-Host "[*] Port 8765 is in use by PID $($existingConn.OwningProcess). Releasing port..." -ForegroundColor Yellow
+    Stop-Process -Id $existingConn.OwningProcess -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+}
+
 Write-Host "[*] Starting NERO FastAPI Intelligence Backend on port 8765..." -ForegroundColor Green
 $BackendProcess = Start-Process -FilePath $PythonExe -ArgumentList "apps\backend\run.py" -WorkingDirectory $ScriptDir -PassThru -WindowStyle Minimized
 
