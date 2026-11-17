@@ -306,4 +306,81 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(builderContent.includes('nsis'), 'NSIS Windows installer target defined');
     assert.ok(builderContent.includes('createDesktopShortcut: true'), 'Desktop shortcut enabled');
   });
+
+  await t.test('Living Anime Companion Architecture and Contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    const animStates = [
+      'idle',
+      'listening',
+      'thinking',
+      'talking',
+      'happy',
+      'surprised',
+      'clicked',
+      'sleeping',
+    ];
+
+    // 1. Verify all 8 sprite sheets and single-frame PNG assets exist
+    const assetsDir = path.resolve(__dirname, '../src/assets/companion');
+    for (const state of animStates) {
+      const framePath = path.join(assetsDir, `${state}.png`);
+      const sheetPath = path.join(assetsDir, `${state}-sheet.png`);
+      const hasFrame = await fs.stat(framePath).then(() => true).catch(() => false);
+      const hasSheet = await fs.stat(sheetPath).then(() => true).catch(() => false);
+      assert.ok(hasFrame, `Frame image ${state}.png must exist`);
+      assert.ok(hasSheet, `Sprite sheet ${state}-sheet.png must exist`);
+    }
+
+    // 2. Verify companion types and configuration
+    const typesContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/companion/types.ts'),
+      'utf8'
+    );
+    for (const state of animStates) {
+      assert.ok(typesContent.includes(`'${state}'`), `Type AnimationState must include '${state}'`);
+    }
+    assert.ok(typesContent.includes('CompanionMood'), 'CompanionMood type defined');
+    assert.ok(typesContent.includes('PetStats'), 'PetStats type defined');
+
+    // 3. Verify companion components exist
+    const components = [
+      'SpriteAnimator.tsx',
+      'CompanionBubble.tsx',
+      'CompanionMenu.tsx',
+      'NeroCharacter.tsx',
+    ];
+    for (const comp of components) {
+      const compPath = path.resolve(__dirname, '../src/features/companion/components', comp);
+      const exists = await fs.stat(compPath).then(() => true).catch(() => false);
+      assert.ok(exists, `Companion component ${comp} must exist`);
+    }
+
+    // 4. Verify Floating Companion view and App router integration
+    const floatingExists = await fs
+      .stat(path.resolve(__dirname, '../src/features/companion/FloatingCompanion.tsx'))
+      .then(() => true)
+      .catch(() => false);
+    assert.ok(floatingExists, 'FloatingCompanion.tsx component exists');
+
+    const appContent = await fs.readFile(path.resolve(__dirname, '../src/App.tsx'), 'utf8');
+    assert.ok(appContent.includes('/companion'), 'App.tsx registers /companion route');
+    assert.ok(appContent.includes('FloatingCompanion'), 'FloatingCompanion rendered on /companion');
+
+    // 5. Verify Electron IPC channels for Floating Companion
+    const mainContent = await fs.readFile(path.resolve(__dirname, '../electron/main.ts'), 'utf8');
+    const preloadContent = await fs.readFile(path.resolve(__dirname, '../electron/preload.ts'), 'utf8');
+
+    assert.ok(mainContent.includes('companion:toggle'), 'Main process handles companion:toggle');
+    assert.ok(mainContent.includes('companion:close'), 'Main process handles companion:close');
+    assert.ok(mainContent.includes('companion:openMainWindow'), 'Main process handles companion:openMainWindow');
+    assert.ok(mainContent.includes('companion:setAlwaysOnTop'), 'Main process handles companion:setAlwaysOnTop');
+    assert.ok(mainContent.includes('createCompanionWindow'), 'Main process implements createCompanionWindow');
+
+    assert.ok(preloadContent.includes('companion: {'), 'Preload exposes companion namespace');
+    assert.ok(preloadContent.includes('companion:toggle'), 'Preload wires companion:toggle');
+  });
 });

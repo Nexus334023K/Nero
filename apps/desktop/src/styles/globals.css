@@ -56,3 +56,23 @@ button, input, select, textarea { -webkit-app-region: no-drag; }
 
 /* Title bar drag region */
 .titlebar-drag { -webkit-app-region: drag; }
+
+/* Sprite animation keyframes & helpers */
+@keyframes nero-sprite-step {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+.nero-sprite-animate {
+  animation-name: nero-sprite-step;
+  animation-timing-function: steps(8, end);
+}
+
+.window-drag {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag {
+  -webkit-app-region: no-drag;
+}
+

@@ -20,8 +20,8 @@ class GeminiProvider(BaseAIProvider):
         api_key: str | None = None,
         model_name: str = "gemini-flash-lite-latest",
     ) -> None:
-        self._api_key = api_key or settings.gemini_api_key or ""
-        self._model_name = model_name
+        self._api_key = api_key if api_key is not None else (settings.gemini_api_key or "")
+        self._model_name = self._normalize_model(model_name)
 
     @property
     def name(self) -> str:
@@ -41,7 +41,7 @@ class GeminiProvider(BaseAIProvider):
         return bool(key and key.strip() and not key.startswith("your_"))
 
     def get_api_key(self) -> str:
-        return self._api_key or settings.gemini_api_key or ""
+        return self._api_key if self._api_key is not None else (settings.gemini_api_key or "")
 
     def set_api_key(self, api_key: str) -> None:
         self._api_key = api_key

@@ -8,6 +8,7 @@ import { MemoryView } from './features/memory/MemoryView';
 import { AutomationsView } from './features/automations/AutomationsView';
 import { ProductivityView } from './features/productivity/ProductivityView';
 import { SettingsView } from './features/settings/SettingsView';
+import { FloatingCompanion } from './features/companion/FloatingCompanion';
 import { wsService } from './services/websocket';
 import { api } from './services/api';
 import { useAppStore } from './stores/appStore';
@@ -44,18 +45,26 @@ export function App() {
 
   return (
     <HashRouter>
-      <MainLayout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/chat" element={<ChatView />} />
-          <Route path="/voice" element={<VoiceView />} />
-          <Route path="/memory" element={<MemoryView />} />
-          <Route path="/automations" element={<AutomationsView />} />
-          <Route path="/productivity" element={<ProductivityView />} />
-          <Route path="/settings" element={<SettingsView />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </MainLayout>
+      <Routes>
+        <Route path="/companion" element={<FloatingCompanion />} />
+        <Route
+          path="/*"
+          element={
+            <MainLayout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/chat" element={<ChatView />} />
+                <Route path="/voice" element={<VoiceView />} />
+                <Route path="/memory" element={<MemoryView />} />
+                <Route path="/automations" element={<AutomationsView />} />
+                <Route path="/productivity" element={<ProductivityView />} />
+                <Route path="/settings" element={<SettingsView />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </MainLayout>
+          }
+        />
+      </Routes>
     </HashRouter>
   );
 }

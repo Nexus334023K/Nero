@@ -14,6 +14,14 @@ function getGreeting(): string {
 function QuickActions() {
   const navigate = useNavigate();
 
+  const handleFloatingCompanion = () => {
+    if ((window.electronAPI as any)?.companion?.toggle) {
+      (window.electronAPI as any).companion.toggle();
+    } else {
+      window.open('#/companion', '_blank', 'width=320,height=440');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-xs font-mono uppercase tracking-widest text-nero-muted">Quick Actions</h3>
@@ -41,6 +49,15 @@ function QuickActions() {
         }
       >
         Voice Mode
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={handleFloatingCompanion}
+        icon={
+          <span className="text-xs">🪟</span>
+        }
+      >
+        Floating Companion
       </Button>
       <Button
         variant="ghost"

@@ -4,6 +4,12 @@ interface ElectronAPI {
     maximize: () => void;
     close: () => void;
   };
+  companion: {
+    toggle: () => void;
+    close: () => void;
+    openMainWindow: () => void;
+    setAlwaysOnTop: (flag: boolean) => void;
+  };
   app: {
     getInfo: () => Promise<{ version: string; platform: string; isDev: boolean }>;
   };

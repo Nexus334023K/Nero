@@ -1,9 +1,64 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, screen } from 'electron';
 import { join } from 'path';
 
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
+let companionWindow: BrowserWindow | null = null;
+
+function createCompanionWindow(): void {
+  if (companionWindow) {
+    if (companionWindow.isMinimized()) companionWindow.restore();
+    companionWindow.show();
+    companionWindow.focus();
+    return;
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const companionWidth = 280;
+  const companionHeight = 360;
+
+  companionWindow = new BrowserWindow({
+    title: 'NERO Companion',
+    width: companionWidth,
+    height: companionHeight,
+    x: Math.max(20, screenWidth - companionWidth - 40),
+    y: Math.max(20, screenHeight - companionHeight - 40),
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    hasShadow: true,
+    skipTaskbar: false,
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+    },
+    show: false,
+  });
+
+  companionWindow.setMenuBarVisibility(false);
+
+  companionWindow.once('ready-to-show', () => {
+    companionWindow?.show();
+  });
+
+  if (isDev) {
+    void companionWindow.loadURL('http://localhost:5173/#/companion');
+  } else {
+    void companionWindow.loadFile(join(__dirname, '../dist/index.html'), {
+      hash: '/companion',
+    });
+  }
+
+  companionWindow.on('closed', () => {
+    companionWindow = null;
+  });
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -72,6 +127,34 @@ ipcMain.on('window:maximize', () => {
   else mainWindow?.maximize();
 });
 ipcMain.on('window:close', () => mainWindow?.close());
+
+// IPC Handlers for companion window
+ipcMain.on('companion:toggle', () => {
+  if (companionWindow && companionWindow.isVisible()) {
+    companionWindow.hide();
+  } else {
+    createCompanionWindow();
+  }
+});
+ipcMain.on('companion:close', () => {
+  if (companionWindow) {
+    companionWindow.hide();
+  }
+});
+ipcMain.on('companion:openMainWindow', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    createWindow();
+  }
+});
+ipcMain.on('companion:setAlwaysOnTop', (_event, flag: boolean) => {
+  if (companionWindow) {
+    companionWindow.setAlwaysOnTop(Boolean(flag));
+  }
+});
 
 // IPC: get app info
 ipcMain.handle('app:getInfo', () => ({
