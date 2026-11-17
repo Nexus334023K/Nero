@@ -1,6 +1,8 @@
 import { api } from './api';
 import { useAppStore } from '../stores/appStore';
 import { useVoiceStore } from '../stores/voiceStore';
+import { useAudioStore } from '../stores/audioStore';
+import { audioDeviceService } from './audioDeviceService';
 
 class VoiceService {
   private mediaRecorder: MediaRecorder | null = null;
@@ -13,10 +15,23 @@ class VoiceService {
   async startRecording(): Promise<boolean> {
     const voiceStore = useVoiceStore.getState();
     const appStore = useAppStore.getState();
+    const audioStore = useAudioStore.getState();
 
     try {
       this.audioChunks = [];
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Build recording constraints using selected microphone
+      const constraints: MediaTrackConstraints = {
+        echoCancellation: audioStore.echoCancellation,
+        noiseSuppression: audioStore.noiseSuppression,
+        autoGainControl: audioStore.autoGainControl,
+      };
+
+      if (audioStore.selectedMicId && audioStore.selectedMicId !== 'default') {
+        constraints.deviceId = { exact: audioStore.selectedMicId };
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
 
       // Audio frequency analyzer for reactive waveform
       try {
@@ -132,6 +147,9 @@ class VoiceService {
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       this.currentAudio = audio;
+
+      // Route playback to selected speaker/headphone device
+      await audioDeviceService.applySinkId(audio);
 
       audio.onended = () => {
         voiceStore.setIsSpeaking(false);

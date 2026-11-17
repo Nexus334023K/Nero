@@ -3,6 +3,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { useToolsStore } from '../../stores/toolsStore';
 import { voiceService } from '../../services/voice';
+import { AudioDeviceSettings } from './components/AudioDeviceSettings';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { api, type ProviderItem } from '../../services/api';
@@ -471,6 +472,9 @@ export function SettingsView() {
           })}
         </div>
       </section>
+
+      {/* Audio & Devices Section */}
+      <AudioDeviceSettings />
 
       {/* Voice Intelligence & Fish Audio Section */}
       <section className="flex flex-col gap-3">

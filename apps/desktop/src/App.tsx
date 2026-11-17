@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { ChatView } from './features/chat/ChatView';
@@ -12,6 +12,18 @@ import { FloatingCompanion } from './features/companion/FloatingCompanion';
 import { wsService } from './services/websocket';
 import { api } from './services/api';
 import { useAppStore } from './stores/appStore';
+
+function NavigationSync() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (window.electronAPI?.onNavigation) {
+      return window.electronAPI.onNavigation((route) => {
+        navigate(route);
+      });
+    }
+  }, [navigate]);
+  return null;
+}
 
 export function App() {
   const { setBackendStatus, setBackendVersion, setLastHealthCheck } = useAppStore();
@@ -45,6 +57,7 @@ export function App() {
 
   return (
     <HashRouter>
+      <NavigationSync />
       <Routes>
         <Route path="/companion" element={<FloatingCompanion />} />
         <Route

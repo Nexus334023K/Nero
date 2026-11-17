@@ -1,10 +1,75 @@
 import { app, BrowserWindow, ipcMain, shell, screen } from 'electron';
 import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
 let companionWindow: BrowserWindow | null = null;
+
+interface CompanionConfig {
+  x?: number;
+  y?: number;
+  alwaysOnTop?: boolean;
+}
+
+function getCompanionConfigPath(): string {
+  return join(app.getPath('userData'), 'companion-config.json');
+}
+
+function loadCompanionConfig(): CompanionConfig {
+  try {
+    const p = getCompanionConfigPath();
+    if (existsSync(p)) {
+      return JSON.parse(readFileSync(p, 'utf8'));
+    }
+  } catch {
+    // fallback
+  }
+  return { alwaysOnTop: true };
+}
+
+function saveCompanionConfig(cfg: CompanionConfig): void {
+  try {
+    const p = getCompanionConfigPath();
+    writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
+  } catch {
+    // ignore
+  }
+}
+
+function getValidCompanionPosition(
+  savedX?: number,
+  savedY?: number,
+  width = 260,
+  height = 320,
+): { x: number; y: number } {
+  const displays = screen.getAllDisplays();
+
+  if (typeof savedX === 'number' && typeof savedY === 'number') {
+    const isVisible = displays.some((display) => {
+      const { x, y, width: dW, height: dH } = display.workArea;
+      return (
+        savedX >= x - 30 &&
+        savedX <= x + dW - 50 &&
+        savedY >= y - 30 &&
+        savedY <= y + dH - 50
+      );
+    });
+
+    if (isVisible) {
+      return { x: savedX, y: savedY };
+    }
+  }
+
+  // Default to bottom-right corner of primary screen
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { x: pX, y: pY, width: screenWidth, height: screenHeight } = primaryDisplay.workArea;
+  return {
+    x: Math.max(20, pX + screenWidth - width - 40),
+    y: Math.max(20, pY + screenHeight - height - 40),
+  };
+}
 
 function createCompanionWindow(): void {
   if (companionWindow) {
@@ -14,22 +79,23 @@ function createCompanionWindow(): void {
     return;
   }
 
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-  const companionWidth = 280;
-  const companionHeight = 360;
+  const companionWidth = 260;
+  const companionHeight = 320;
+  const cfg = loadCompanionConfig();
+  const initialPos = getValidCompanionPosition(cfg.x, cfg.y, companionWidth, companionHeight);
 
   companionWindow = new BrowserWindow({
     title: 'NERO Companion',
     width: companionWidth,
     height: companionHeight,
-    x: Math.max(20, screenWidth - companionWidth - 40),
-    y: Math.max(20, screenHeight - companionHeight - 40),
+    x: initialPos.x,
+    y: initialPos.y,
     frame: false,
     transparent: true,
-    alwaysOnTop: true,
+    backgroundColor: '#00000000',
+    alwaysOnTop: cfg.alwaysOnTop ?? true,
     resizable: false,
-    hasShadow: true,
+    hasShadow: false, // Essential for pure transparent desktop pet without Windows box-shadow
     skipTaskbar: false,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
@@ -45,6 +111,14 @@ function createCompanionWindow(): void {
 
   companionWindow.once('ready-to-show', () => {
     companionWindow?.show();
+  });
+
+  // Track window movements to persist desktop position
+  companionWindow.on('moved', () => {
+    if (!companionWindow) return;
+    const [x, y] = companionWindow.getPosition();
+    const currentCfg = loadCompanionConfig();
+    saveCompanionConfig({ ...currentCfg, x, y });
   });
 
   if (isDev) {
@@ -141,18 +215,43 @@ ipcMain.on('companion:close', () => {
     companionWindow.hide();
   }
 });
-ipcMain.on('companion:openMainWindow', () => {
+ipcMain.on('companion:openMainWindow', (_event, route?: string) => {
+  const targetRoute = route || '/chat';
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+    mainWindow.webContents.send('navigation:go', targetRoute);
+  } else {
+    createWindow();
+  }
+});
+ipcMain.on('companion:openSettings', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('navigation:go', '/settings');
   } else {
     createWindow();
   }
 });
 ipcMain.on('companion:setAlwaysOnTop', (_event, flag: boolean) => {
+  const boolFlag = Boolean(flag);
   if (companionWindow) {
-    companionWindow.setAlwaysOnTop(Boolean(flag));
+    companionWindow.setAlwaysOnTop(boolFlag);
+  }
+  const currentCfg = loadCompanionConfig();
+  saveCompanionConfig({ ...currentCfg, alwaysOnTop: boolFlag });
+});
+ipcMain.on('companion:setIgnoreMouseEvents', (_event, ignore: boolean, options?: { forward?: boolean }) => {
+  if (companionWindow && !companionWindow.isDestroyed()) {
+    companionWindow.setIgnoreMouseEvents(Boolean(ignore), { forward: options?.forward ?? true });
+  }
+});
+ipcMain.on('companion:move', (_event, x: number, y: number) => {
+  if (companionWindow && !companionWindow.isDestroyed()) {
+    companionWindow.setPosition(Math.round(x), Math.round(y));
   }
 });
 

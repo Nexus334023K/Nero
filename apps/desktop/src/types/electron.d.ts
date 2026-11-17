@@ -7,9 +7,13 @@ interface ElectronAPI {
   companion: {
     toggle: () => void;
     close: () => void;
-    openMainWindow: () => void;
+    openMainWindow: (route?: string) => void;
+    openSettings: () => void;
     setAlwaysOnTop: (flag: boolean) => void;
+    setIgnoreMouseEvents: (ignore: boolean, forward?: boolean) => void;
+    move: (x: number, y: number) => void;
   };
+  onNavigation?: (callback: (route: string) => void) => () => void;
   app: {
     getInfo: () => Promise<{ version: string; platform: string; isDev: boolean }>;
   };

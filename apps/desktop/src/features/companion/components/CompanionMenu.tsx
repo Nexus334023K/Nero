@@ -152,6 +152,15 @@ export const CompanionMenu: React.FC<CompanionMenuProps> = ({ onClose }) => {
             <span>🎙️</span> Voice Mode
           </button>
           <button
+            onClick={() => {
+              setMenuOpen(false);
+              navigate('/settings');
+            }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-white/10 transition-colors text-left"
+          >
+            <span>⚙️</span> Audio & Settings
+          </button>
+          <button
             onClick={handleOpenFloating}
             className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-nero-cyan/20 text-nero-cyan transition-colors text-left font-medium"
           >

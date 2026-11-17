@@ -1,122 +1,244 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { NeroCharacter } from './components/NeroCharacter';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '../../stores/appStore';
 import { useCompanionStore } from '../../stores/companionStore';
+import { SpriteAnimator } from './components/SpriteAnimator';
+import { CompanionContextMenu } from './components/CompanionContextMenu';
+import type { AnimationState } from './types';
 
 export const FloatingCompanion: React.FC = () => {
-  const { petCompanion, triggerClickReaction } = useCompanionStore();
+  const { aiState } = useAppStore();
+  const {
+    overrideAnimation,
+    stats,
+    bubble,
+    dismissBubble,
+    triggerClickReaction,
+  } = useCompanionStore();
+
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const dragStartRef = useRef<{
+    screenX: number;
+    screenY: number;
+    winX: number;
+    winY: number;
+    moved: boolean;
+  } | null>(null);
 
-  const handleClose = () => {
-    if ((window.electronAPI as any)?.companion?.close) {
-      (window.electronAPI as any).companion.close();
-    } else {
-      window.close();
+  // Set transparent class on html and body on mount
+  useEffect(() => {
+    document.documentElement.classList.add('transparent-companion');
+    document.body.classList.add('transparent-companion');
+
+    return () => {
+      document.documentElement.classList.remove('transparent-companion');
+      document.body.classList.remove('transparent-companion');
+    };
+  }, []);
+
+  // Auto-dismiss temporary speech bubbles after duration
+  useEffect(() => {
+    if (!bubble) return;
+    const timer = setTimeout(() => {
+      dismissBubble();
+    }, bubble.duration ?? 4000);
+    return () => clearTimeout(timer);
+  }, [bubble, dismissBubble]);
+
+  // Compute active animation based on AI state & companion mood & overrides
+  const currentAnimation: AnimationState = useMemo(() => {
+    // 1. Temporary pet reaction (click, pet) takes priority
+    if (overrideAnimation) return overrideAnimation;
+
+    // 2. Real AI activity states
+    switch (aiState) {
+      case 'listening':
+        return 'listening';
+      case 'thinking':
+      case 'executing':
+        return 'thinking';
+      case 'speaking':
+        return 'talking';
+      case 'error':
+        return 'surprised';
+      case 'idle':
+      default:
+        if (stats.mood === 'sleepy' || stats.energy < 20) return 'sleeping';
+        if (stats.mood === 'happy') return 'happy';
+        return 'idle';
     }
-  };
+  }, [overrideAnimation, aiState, stats.mood, stats.energy]);
 
-  const handleOpenMain = () => {
-    if ((window.electronAPI as any)?.companion?.openMainWindow) {
-      (window.electronAPI as any).companion.openMainWindow();
-    } else {
-      window.open('#/', '_blank');
+  // Mouse click-through handling
+  const handleMouseEnterInteractive = useCallback(() => {
+    window.electronAPI?.companion?.setIgnoreMouseEvents(false);
+  }, []);
+
+  const handleMouseLeaveInteractive = useCallback(() => {
+    if (!contextMenuPos) {
+      window.electronAPI?.companion?.setIgnoreMouseEvents(true, true);
     }
-  };
+  }, [contextMenuPos]);
 
+  // Toggle always on top
   const handleToggleAlwaysOnTop = () => {
-    const nextState = !isAlwaysOnTop;
-    setIsAlwaysOnTop(nextState);
-    if ((window.electronAPI as any)?.companion?.setAlwaysOnTop) {
-      (window.electronAPI as any).companion.setAlwaysOnTop(nextState);
+    const next = !isAlwaysOnTop;
+    setIsAlwaysOnTop(next);
+    window.electronAPI?.companion?.setAlwaysOnTop(next);
+  };
+
+  // Draggable & click interaction
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click for drag and poke
+
+    dragStartRef.current = {
+      screenX: e.screenX,
+      screenY: e.screenY,
+      winX: window.screenX,
+      winY: window.screenY,
+      moved: false,
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const dx = moveEvent.screenX - dragStartRef.current.screenX;
+      const dy = moveEvent.screenY - dragStartRef.current.screenY;
+
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        dragStartRef.current.moved = true;
+        window.electronAPI?.companion?.move(
+          dragStartRef.current.winX + dx,
+          dragStartRef.current.winY + dy,
+        );
+      }
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+
+      // If user released without dragging, execute clean single click reaction
+      if (dragStartRef.current && !dragStartRef.current.moved) {
+        triggerClickReaction();
+      }
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Double click -> Open main chat
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.electronAPI?.companion?.openMainWindow) {
+      window.electronAPI.companion.openMainWindow('/chat');
+    } else {
+      window.open('#/chat', '_blank');
     }
+  };
+
+  // Right click -> Open compact context menu
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
   };
 
   return (
     <div
-      className="w-full h-full select-none flex flex-col justify-between items-center p-3 relative overflow-hidden"
+      className="w-screen h-screen select-none flex flex-col items-center justify-end p-2 relative overflow-visible"
       style={{
-        background: 'rgba(10, 15, 26, 0.75)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(0, 212, 255, 0.25)',
-        borderRadius: '24px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 16px rgba(0, 212, 255, 0.1)',
+        background: 'transparent',
+        backgroundColor: 'transparent',
       }}
+      onMouseEnter={handleMouseLeaveInteractive}
     >
-      {/* Top Drag Bar & Controls */}
-      <div className="w-full flex items-center justify-between px-2 pt-1 window-drag">
-        {/* Drag handle pill */}
-        <div className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
-          <div className="w-1.5 h-1.5 rounded-full bg-nero-cyan animate-pulse" />
-          <span className="text-[10px] font-mono tracking-widest uppercase text-nero-cyan font-bold">
-            NERO
-          </span>
-        </div>
-
-        {/* Action icons */}
-        <div className="flex items-center gap-1 window-no-drag">
-          <button
-            onClick={handleToggleAlwaysOnTop}
-            title={isAlwaysOnTop ? 'Always on Top (Active)' : 'Pin to Top'}
-            className={`p-1 rounded text-xs transition-colors ${
-              isAlwaysOnTop ? 'text-nero-cyan bg-nero-cyan/15' : 'text-nero-muted hover:text-nero-text'
-            }`}
+      {/* Temporary Speech Bubble (appears only when NERO has something to say) */}
+      <AnimatePresence>
+        {bubble && (
+          <motion.div
+            key={bubble.id}
+            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.92 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 350 }}
+            onMouseEnter={handleMouseEnterInteractive}
+            onMouseLeave={handleMouseLeaveInteractive}
+            onClick={(e) => {
+              e.stopPropagation();
+              dismissBubble();
+            }}
+            className="cursor-pointer mb-2 px-3.5 py-2 rounded-2xl text-xs max-w-[210px] text-center text-nero-text font-medium leading-snug shadow-[0_4px_20px_rgba(0,212,255,0.3)] border border-nero-cyan/40 relative z-40"
+            style={{
+              background: 'rgba(10, 15, 26, 0.92)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
           >
-            📌
-          </button>
-          <button
-            onClick={handleOpenMain}
-            title="Open Main NERO Dashboard"
-            className="p-1 rounded text-xs text-nero-muted hover:text-nero-cyan hover:bg-white/5 transition-colors"
-          >
-            🗔
-          </button>
-          <button
-            onClick={handleClose}
-            title="Hide Companion"
-            className="p-1 rounded text-xs text-nero-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
+            {bubble.text}
+            {/* Downward pointing speech bubble tail */}
+            <div
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0"
+              style={{
+                borderLeft: '5px solid transparent',
+                borderRight: '5px solid transparent',
+                borderTop: '7px solid rgba(0, 212, 255, 0.7)',
+              }}
+            />
+            <div
+              className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-0 h-0"
+              style={{
+                borderLeft: '4px solid transparent',
+                borderRight: '4px solid transparent',
+                borderTop: '5px solid rgba(10, 15, 26, 0.95)',
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Main Character Area */}
-      <div className="flex-1 flex flex-col items-center justify-center relative w-full window-no-drag">
-        <NeroCharacter size={200} compact={true} showAura={true} />
-      </div>
-
-      {/* Quick Action Pills */}
+      {/* Pure Character Sprite Container */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full flex items-center justify-center gap-2 pb-1 window-no-drag"
+        onMouseEnter={handleMouseEnterInteractive}
+        onMouseLeave={handleMouseLeaveInteractive}
+        onMouseDown={handleMouseDown}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
+        className="relative cursor-grab active:cursor-grabbing z-30"
+        style={{
+          width: 220,
+          height: 220,
+        }}
+        title="NERO — Drag to move, click to poke, double-click for chat, right-click for menu"
+        animate={{
+          y: currentAnimation === 'sleeping' ? [0, 1, 0] : [0, -3.5, 0],
+          scale: currentAnimation === 'clicked' ? [1, 0.94, 1.05, 1] : 1,
+        }}
+        transition={{
+          y: {
+            duration: currentAnimation === 'sleeping' ? 4 : 3,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          },
+          scale: { duration: 0.3 },
+        }}
       >
-        <button
-          onClick={petCompanion}
-          className="flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-white/[0.06] hover:bg-red-500/20 text-nero-text hover:text-red-300 border border-white/10 transition-all active:scale-95 shadow-sm"
-          title="Pet NERO"
-        >
-          <span>❤️</span>
-          <span className="text-[11px] font-medium">Pet</span>
-        </button>
-        <button
-          onClick={triggerClickReaction}
-          className="flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-white/[0.06] hover:bg-nero-cyan/20 text-nero-text hover:text-nero-cyan border border-white/10 transition-all active:scale-95 shadow-sm"
-          title="Poke NERO"
-        >
-          <span>👉</span>
-          <span className="text-[11px] font-medium">Poke</span>
-        </button>
-        <button
-          onClick={handleOpenMain}
-          className="flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-nero-cyan/15 hover:bg-nero-cyan/25 text-nero-cyan border border-nero-cyan/30 transition-all active:scale-95 shadow-sm font-medium"
-          title="Open Chat in Main App"
-        >
-          <span>💬</span>
-          <span className="text-[11px]">Chat</span>
-        </button>
+        <SpriteAnimator state={currentAnimation} size={220} />
       </motion.div>
+
+      {/* Compact Context Menu */}
+      <CompanionContextMenu
+        isOpen={contextMenuPos !== null}
+        position={contextMenuPos || { x: 0, y: 0 }}
+        isAlwaysOnTop={isAlwaysOnTop}
+        onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+        onClose={() => {
+          setContextMenuPos(null);
+          handleMouseLeaveInteractive();
+        }}
+      />
     </div>
   );
 };

@@ -383,4 +383,89 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(preloadContent.includes('companion: {'), 'Preload exposes companion namespace');
     assert.ok(preloadContent.includes('companion:toggle'), 'Preload wires companion:toggle');
   });
+
+  await t.test('Audio Device Management and Speech Routing Contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // 1. Verify audioStore.ts exists and defines device selection & persistence
+    const audioStorePath = path.resolve(__dirname, '../src/stores/audioStore.ts');
+    const audioStoreContent = await fs.readFile(audioStorePath, 'utf8');
+    assert.ok(audioStoreContent.includes('selectedMicId'), 'AudioStore manages selectedMicId');
+    assert.ok(audioStoreContent.includes('selectedSpeakerId'), 'AudioStore manages selectedSpeakerId');
+    assert.ok(audioStoreContent.includes('refreshDevices'), 'AudioStore provides refreshDevices action');
+    assert.ok(audioStoreContent.includes('devicechange'), 'AudioStore listens for devicechange event');
+    assert.ok(audioStoreContent.includes('echoCancellation'), 'AudioStore manages echoCancellation');
+    assert.ok(audioStoreContent.includes('noiseSuppression'), 'AudioStore manages noiseSuppression');
+    assert.ok(audioStoreContent.includes('nero_audio_settings_v1'), 'AudioStore persists to localStorage');
+
+    // 2. Verify audioDeviceService.ts provides live mic test and speaker test
+    const audioServicePath = path.resolve(__dirname, '../src/services/audioDeviceService.ts');
+    const audioServiceContent = await fs.readFile(audioServicePath, 'utf8');
+    assert.ok(audioServiceContent.includes('startMicTest'), 'AudioDeviceService provides startMicTest');
+    assert.ok(audioServiceContent.includes('stopMicTest'), 'AudioDeviceService provides stopMicTest');
+    assert.ok(audioServiceContent.includes('testSpeaker'), 'AudioDeviceService provides testSpeaker');
+    assert.ok(audioServiceContent.includes('applySinkId'), 'AudioDeviceService handles setSinkId routing');
+
+    // 3. Verify voice.ts routes recording to selected mic and TTS to selected speaker
+    const voiceServicePath = path.resolve(__dirname, '../src/services/voice.ts');
+    const voiceServiceContent = await fs.readFile(voiceServicePath, 'utf8');
+    assert.ok(voiceServiceContent.includes('useAudioStore.getState()'), 'VoiceService reads active audioStore');
+    assert.ok(voiceServiceContent.includes('selectedMicId'), 'VoiceService binds selected microphone deviceId');
+    assert.ok(voiceServiceContent.includes('audioDeviceService.applySinkId'), 'VoiceService routes audio playback through selected speaker sink');
+
+    // 4. Verify AudioDeviceSettings UI component is wired into SettingsView
+    const audioSettingsPath = path.resolve(__dirname, '../src/features/settings/components/AudioDeviceSettings.tsx');
+    const audioSettingsExists = await fs.stat(audioSettingsPath).then(() => true).catch(() => false);
+    assert.ok(audioSettingsExists, 'AudioDeviceSettings.tsx exists');
+
+    const settingsViewPath = path.resolve(__dirname, '../src/features/settings/SettingsView.tsx');
+    const settingsViewContent = await fs.readFile(settingsViewPath, 'utf8');
+    assert.ok(settingsViewContent.includes('AudioDeviceSettings'), 'SettingsView renders AudioDeviceSettings');
+  });
+
+  await t.test('True Transparent Desktop Pet Architecture and IPC Contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // 1. Verify Electron main.ts transparency and bounds validation
+    const mainPath = path.resolve(__dirname, '../electron/main.ts');
+    const mainContent = await fs.readFile(mainPath, 'utf8');
+    assert.ok(mainContent.includes('transparent: true'), 'Companion window must be native transparent');
+    assert.ok(mainContent.includes("backgroundColor: '#00000000'"), 'Companion window has 0-alpha background');
+    assert.ok(mainContent.includes('hasShadow: false'), 'Companion window must disable shadow to prevent Windows box shadow');
+    assert.ok(mainContent.includes('getValidCompanionPosition'), 'Companion window validates bounds on multi-monitor setups');
+    assert.ok(mainContent.includes('companion:setIgnoreMouseEvents'), 'Main process handles click-through setIgnoreMouseEvents');
+    assert.ok(mainContent.includes('companion:move'), 'Main process supports companion window moving');
+    assert.ok(mainContent.includes('companion:openSettings'), 'Main process supports opening settings from pet');
+
+    // 2. Verify globals.css renderer transparency
+    const globalsPath = path.resolve(__dirname, '../src/styles/globals.css');
+    const globalsContent = await fs.readFile(globalsPath, 'utf8');
+    assert.ok(globalsContent.includes('body.transparent-companion'), 'CSS defines body.transparent-companion override');
+    assert.ok(globalsContent.includes('background: transparent !important'), 'Renderer root forced transparent in companion mode');
+
+    // 3. Verify FloatingCompanion.tsx true desktop pet design
+    const companionPath = path.resolve(__dirname, '../src/features/companion/FloatingCompanion.tsx');
+    const companionContent = await fs.readFile(companionPath, 'utf8');
+    assert.ok(!companionContent.includes('border: 1px solid rgba(0, 212, 255'), 'FloatingCompanion must not render a card border');
+    assert.ok(!companionContent.includes('Quick Action Pills'), 'FloatingCompanion must not render a permanent toolbar');
+    assert.ok(companionContent.includes('transparent-companion'), 'FloatingCompanion activates transparent-companion body class');
+    assert.ok(companionContent.includes('setIgnoreMouseEvents'), 'FloatingCompanion manages mouse event click-through pass-through');
+    assert.ok(companionContent.includes('CompanionContextMenu'), 'FloatingCompanion renders on-demand compact context menu');
+
+    // 4. Verify context menu options
+    const menuPath = path.resolve(__dirname, '../src/features/companion/components/CompanionContextMenu.tsx');
+    const menuContent = await fs.readFile(menuPath, 'utf8');
+    assert.ok(menuContent.includes('Open Chat'), 'Context menu offers Open Chat');
+    assert.ok(menuContent.includes('Pet NERO'), 'Context menu offers Pet NERO');
+    assert.ok(menuContent.includes('Poke NERO'), 'Context menu offers Poke NERO');
+    assert.ok(menuContent.includes('Always on Top'), 'Context menu offers Always on Top toggle');
+    assert.ok(menuContent.includes('Open Audio & Settings'), 'Context menu offers Open Audio & Settings');
+    assert.ok(menuContent.includes('Hide Companion'), 'Context menu offers Hide Companion');
+  });
 });

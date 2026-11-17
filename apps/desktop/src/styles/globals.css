@@ -26,6 +26,17 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+/* True transparent desktop companion window */
+html.transparent-companion,
+body.transparent-companion,
+body.transparent-companion #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
