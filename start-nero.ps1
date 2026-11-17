@@ -1,4 +1,4 @@
-﻿# NERO — PowerShell 1-Click Production Launcher
+# NERO — PowerShell 1-Click Production Launcher
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================================" -ForegroundColor Cyan
