@@ -80,12 +80,27 @@ ipcMain.handle('app:getInfo', () => ({
   isDev,
 }));
 
-app.whenReady().then(() => {
-  createWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// Disable GPU shader disk cache to prevent Windows file-lock collision warnings
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
-}).catch(console.error);
+
+  app.whenReady().then(() => {
+    createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  }).catch(console.error);
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
