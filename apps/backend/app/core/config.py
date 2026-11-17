@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     active_ai_provider: str = "offline"
     default_personality_mode: str = "adaptive"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(".env", "../.env", "../../.env"),
+        extra="ignore",
+    )
 
 
 settings = Settings()

@@ -18,7 +18,7 @@ class GeminiProvider(BaseAIProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model_name: str = "gemini-1.5-pro",
+        model_name: str = "gemini-flash-lite-latest",
     ) -> None:
         self._api_key = api_key or settings.gemini_api_key or ""
         self._model_name = model_name
@@ -47,7 +47,18 @@ class GeminiProvider(BaseAIProvider):
         self._api_key = api_key
 
     def set_model(self, model_name: str) -> None:
-        self._model_name = model_name
+        self._model_name = self._normalize_model(model_name)
+
+    @staticmethod
+    def _normalize_model(model_name: str) -> str:
+        legacy_map = {
+            "gemini-1.5-flash": "gemini-flash-lite-latest",
+            "gemini-1.5-pro": "gemini-flash-lite-latest",
+            "gemini-2.0-flash-exp": "gemini-flash-latest",
+            "gemini-2.0-flash": "gemini-flash-latest",
+            "gemini-2.5-flash": "gemini-flash-lite-latest",
+        }
+        return legacy_map.get(model_name, model_name)
 
     async def check_health(self) -> bool:
         if not self.is_configured:
@@ -104,7 +115,8 @@ class GeminiProvider(BaseAIProvider):
             )
 
         key = self.get_api_key()
-        url = f"{GEMINI_BASE_URL}/models/{self._model_name}:generateContent?key={key}"
+        model = self._normalize_model(self._model_name)
+        url = f"{GEMINI_BASE_URL}/models/{model}:generateContent?key={key}"
         payload = self._build_payload(prompt, history, system_prompt)
 
         try:
@@ -141,7 +153,8 @@ class GeminiProvider(BaseAIProvider):
             return
 
         key = self.get_api_key()
-        url = f"{GEMINI_BASE_URL}/models/{self._model_name}:streamGenerateContent?alt=sse&key={key}"
+        model = self._normalize_model(self._model_name)
+        url = f"{GEMINI_BASE_URL}/models/{model}:streamGenerateContent?alt=sse&key={key}"
         payload = self._build_payload(prompt, history, system_prompt)
 
         try:

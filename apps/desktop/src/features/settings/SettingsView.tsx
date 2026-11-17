@@ -379,8 +379,8 @@ export function SettingsView() {
             description="High-speed multimodal intelligence via Google Gemini API."
             isActive={isGeminiActive}
             isConfigured={geminiInfo?.is_configured ?? false}
-            models={['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']}
-            defaultModel={geminiInfo?.default_model || 'gemini-1.5-flash'}
+            models={['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-2.5-flash']}
+            defaultModel={geminiInfo?.default_model || 'gemini-flash-lite-latest'}
             onSave={(cfg) => handleProviderSave('gemini', cfg)}
             onTest={() => handleProviderTest('gemini')}
           />
