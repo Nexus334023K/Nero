@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.node.json && vite build",
     "electron:dev": "concurrently \"vite\" \"cross-env ELECTRON_RUN_AS_NODE= NODE_ENV=development electron .\"",
-    "electron:start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
+    "electron:start": "node scripts/run-electron.cjs",
     "electron:build": "npm run build && electron-builder",
     "type-check": "tsc --noEmit",
     "test": "node --test tests/stores.test.mjs",

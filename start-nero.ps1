@@ -1,8 +1,8 @@
-# NERO — PowerShell 1-Click Production Launcher
+# NERO - PowerShell 1-Click Production Launcher
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================================" -ForegroundColor Cyan
-Write-Host "  NERO — Personal AI Desktop Companion for Windows" -ForegroundColor Cyan
+Write-Host "  NERO - Personal AI Desktop Companion for Windows" -ForegroundColor Cyan
 Write-Host "  Version 1.0 (Phases 1-7 Fully Operational)" -ForegroundColor DarkCyan
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host ""

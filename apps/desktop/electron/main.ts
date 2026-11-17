@@ -7,6 +7,7 @@ let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
+    title: 'NERO — Personal AI Desktop Companion',
     width: 1280,
     height: 800,
     minWidth: 900,
@@ -24,8 +25,23 @@ function createWindow(): void {
     show: false,
   });
 
+  mainWindow.setMenuBarVisibility(false);
+
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+    mainWindow?.focus();
+  });
+
+  // Safety fallback to ensure window is visible
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 1000);
+
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
+    console.error('[ELECTRON] Failed to load index:', code, desc);
   });
 
   if (isDev) {
