@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -25,6 +25,7 @@ class User(Base):
     memories: Mapped[list["Memory"]] = relationship(back_populates="user")
     projects: Mapped[list["Project"]] = relationship(back_populates="user")
     tasks: Mapped[list["Task"]] = relationship(back_populates="user")
+    background_tasks: Mapped[list["BackgroundTask"]] = relationship(back_populates="user")
 
 
 class Conversation(Base):
@@ -160,5 +161,39 @@ class Task(Base):
 
     user: Mapped["User"] = relationship(back_populates="tasks")
     project: Mapped["Project | None"] = relationship(back_populates="tasks")
+
+
+class BackgroundTask(Base):
+    __tablename__ = "background_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False
+    )
+    request: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    assigned_agent: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="general"
+    )
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="queued"
+    )  # queued/planning/running/waiting/paused/completed/failed/cancelled
+    current_step: Mapped[int] = mapped_column(default=0)
+    total_steps: Mapped[int] = mapped_column(default=0)
+    progress: Mapped[float] = mapped_column(Float, default=0.0)
+    plan: Mapped[list | dict | None] = mapped_column(JSON, nullable=True)
+    step_results: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    checkpoint: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    steering_instructions: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    error_info: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="background_tasks")
+
 
 

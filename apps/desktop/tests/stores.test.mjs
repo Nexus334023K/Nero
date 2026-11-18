@@ -525,4 +525,67 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(audioSettingsContent.includes('1800'), '1800ms relaxed pause preset available');
     assert.ok(audioSettingsContent.includes('vadSensitivity'), 'Speech detection sensitivity controls present');
   });
+
+  await t.test('Milestone 1 Persistent Background Task Engine & Agent Foundation contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // 1. Verify types/tasks.ts
+    const typesPath = path.resolve(__dirname, '../src/types/tasks.ts');
+    const typesContent = await fs.readFile(typesPath, 'utf8');
+    assert.ok(typesContent.includes("'queued'"), 'queued status defined');
+    assert.ok(typesContent.includes("'planning'"), 'planning status defined');
+    assert.ok(typesContent.includes("'running'"), 'running status defined');
+    assert.ok(typesContent.includes("'waiting'"), 'waiting status defined');
+    assert.ok(typesContent.includes("'paused'"), 'paused status defined');
+    assert.ok(typesContent.includes("'completed'"), 'completed status defined');
+    assert.ok(typesContent.includes("'failed'"), 'failed status defined');
+    assert.ok(typesContent.includes("'cancelled'"), 'cancelled status defined');
+    assert.ok(typesContent.includes('interface BackgroundTask'), 'BackgroundTask interface declared');
+    assert.ok(typesContent.includes('interface TaskStep'), 'TaskStep interface declared');
+    assert.ok(typesContent.includes('interface TaskReportResponse'), 'TaskReportResponse interface declared');
+
+    // 2. Verify api.ts task endpoints
+    const apiPath = path.resolve(__dirname, '../src/services/api.ts');
+    const apiContent = await fs.readFile(apiPath, 'utf8');
+    assert.ok(apiContent.includes('/tasks/'), 'Tasks sub-endpoints present in api.ts');
+    assert.ok(apiContent.includes('finishEarly'), 'finishEarly method present');
+    assert.ok(apiContent.includes('steer:'), 'steer method present');
+    assert.ok(apiContent.includes('getReport:'), 'getReport method present');
+    assert.ok(apiContent.includes('retry:'), 'retry method present');
+
+    // 3. Verify taskStore.ts
+    const storePath = path.resolve(__dirname, '../src/stores/taskStore.ts');
+    const storeContent = await fs.readFile(storePath, 'utf8');
+    assert.ok(storeContent.includes('useTaskStore'), 'useTaskStore declared');
+    assert.ok(storeContent.includes('createTask:'), 'createTask action present');
+    assert.ok(storeContent.includes('pauseTask:'), 'pauseTask action present');
+    assert.ok(storeContent.includes('resumeTask:'), 'resumeTask action present');
+    assert.ok(storeContent.includes('steerTask:'), 'steerTask action present');
+    assert.ok(storeContent.includes('finishEarlyTask:'), 'finishEarlyTask action present');
+    assert.ok(storeContent.includes('fetchReport:'), 'fetchReport action present');
+    assert.ok(storeContent.includes('handleWebSocketEvent:'), 'handleWebSocketEvent present');
+
+    // 4. Verify TasksView.tsx
+    const viewPath = path.resolve(__dirname, '../src/features/tasks/TasksView.tsx');
+    const viewContent = await fs.readFile(viewPath, 'utf8');
+    assert.ok(viewContent.includes('Background Tasks & Agents'), 'View header present');
+    assert.ok(viewContent.includes('Live Agent Steering'), 'Live steering controls present');
+    assert.ok(viewContent.includes('Execution Plan & Sequential Steps'), 'Step timeline present');
+    assert.ok(viewContent.includes('View Report'), 'Report button present');
+    assert.ok(viewContent.includes('New Background Task'), 'Task creation button present');
+
+    // 5. Verify Sidebar and App routing
+    const sidebarPath = path.resolve(__dirname, '../src/components/layout/Sidebar.tsx');
+    const sidebarContent = await fs.readFile(sidebarPath, 'utf8');
+    assert.ok(sidebarContent.includes("path: '/tasks'"), 'Tasks route in sidebar');
+    assert.ok(sidebarContent.includes('TasksIcon'), 'TasksIcon present in sidebar');
+
+    const appPath = path.resolve(__dirname, '../src/App.tsx');
+    const appContent = await fs.readFile(appPath, 'utf8');
+    assert.ok(appContent.includes('<Route path="/tasks" element={<TasksView />} />'), 'Tasks route in App.tsx');
+    assert.ok(appContent.includes("wsService.on('task_event'"), 'WebSocket task event listener in App.tsx');
+  });
 });

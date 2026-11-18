@@ -5,6 +5,7 @@ import httpx
 
 from app.core.logging_config import get_logger
 from app.tools.base import BaseTool, PermissionLevel, ToolResult
+from app.agents.security import URLSafetyGuard
 
 logger = get_logger(__name__)
 
@@ -66,6 +67,15 @@ class WebPageReaderTool(BaseTool):
 
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
         url = params["url"].strip()
+
+        # SSRF and private-network protection
+        is_safe, error_reason, _ = URLSafetyGuard.validate_url(url)
+        if not is_safe:
+            return ToolResult(
+                success=False,
+                action_taken=f"Fetch webpage '{url}'",
+                error=f"Security Block: {error_reason}",
+            )
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NERO-Companion/1.0",

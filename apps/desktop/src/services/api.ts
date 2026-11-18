@@ -6,6 +6,12 @@ import type {
   ToolExecutionResult,
 } from '../types/tools';
 import type { TaskItem, ProjectItem, DailyBriefing } from '../types/productivity';
+import type {
+  BackgroundTask,
+  TaskProgress,
+  TaskCreatePayload,
+  TaskReportResponse,
+} from '../types/tasks';
 
 const BASE_URL = 'http://localhost:8765/api';
 
@@ -379,5 +385,48 @@ export const api = {
         method: 'DELETE',
       }),
     getBriefing: () => request<DailyBriefing>('/productivity/briefing'),
+  },
+  tasks: {
+    list: (status?: string) => {
+      const q = status ? `?status=${encodeURIComponent(status)}` : '';
+      return request<{ tasks: BackgroundTask[]; total: number }>(`/tasks${q}`);
+    },
+    get: (taskId: string) => request<BackgroundTask>(`/tasks/${taskId}`),
+    getProgress: (taskId: string) => request<TaskProgress>(`/tasks/${taskId}/progress`),
+    create: (payload: TaskCreatePayload) =>
+      request<BackgroundTask>('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    pause: (taskId: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}/pause`, {
+        method: 'POST',
+      }),
+    resume: (taskId: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}/resume`, {
+        method: 'POST',
+      }),
+    cancel: (taskId: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}/cancel`, {
+        method: 'POST',
+      }),
+    steer: (taskId: string, instruction: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}/steer`, {
+        method: 'POST',
+        body: JSON.stringify({ instruction }),
+      }),
+    finishEarly: (taskId: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}/finish-early`, {
+        method: 'POST',
+      }),
+    retry: (taskId: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}/retry`, {
+        method: 'POST',
+      }),
+    getReport: (taskId: string) => request<TaskReportResponse>(`/tasks/${taskId}/report`),
+    delete: (taskId: string) =>
+      request<{ success: boolean; message: string; task_id: string; status: string }>(`/tasks/${taskId}`, {
+        method: 'DELETE',
+      }),
   },
 };

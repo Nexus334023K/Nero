@@ -1,7 +1,8 @@
 import json
+import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging_config import get_logger
 from app.database.models import Conversation, Message, User
 from app.database.session import AsyncSessionLocal
+from app.engine.task_engine import task_engine
 from app.intelligence.personality.engine import personality_engine
 from app.intelligence.router import ai_router
 from app.memory.manager import memory_manager
@@ -38,6 +40,36 @@ class AIOrchestrator:
             db.add(user)
             await db.flush()
         return user
+
+    def detect_background_task_intent(self, message: str) -> Optional[Tuple[str, str, str]]:
+        """Detect whether a natural language user request asks for a background task or research."""
+        text = message.strip()
+        lower = text.lower()
+
+        # Explicit background task syntax: "run/start background task: ..." or "background task on ..."
+        bg_match = re.search(r"^(?:run|start|launch)?\s*(?:a\s+)?background\s+task\s*[:\-]?\s*(.+)$", lower)
+        if bg_match:
+            query = text[bg_match.start(1):].strip()
+            agent = "research" if any(w in query.lower() for w in ["research", "investigate", "compare", "report", "study"]) else "general"
+            title = query[:60] + "..." if len(query) > 60 else query
+            return agent, query, title
+
+        # Deep research / investigation request: "research ...", "do research on ...", "please research ..."
+        res_match = re.search(r"^(?:please\s+)?(?:do\s+(?:a\s+)?)?(?:deep\s+)?research\s+(?:on|into|about)?\s*(.+)$", lower)
+        if res_match:
+            query = text[res_match.start(1):].strip()
+            if len(query) > 3:
+                title = f"Research: {query[:50]}"
+                return "research", query, title
+
+        deep_dive_match = re.search(r"^(?:deep\s+dive\s+into|investigate\s+(?:and\s+write\s+a\s+report\s+on)?)\s*(.+)$", lower)
+        if deep_dive_match:
+            query = text[deep_dive_match.start(1):].strip()
+            if len(query) > 3:
+                title = f"Deep Dive: {query[:50]}"
+                return "research", query, title
+
+        return None
 
     async def get_or_create_conversation(
         self,
@@ -105,6 +137,43 @@ class AIOrchestrator:
         )
         db.add(user_msg)
         await db.flush()
+
+        # Check for background task intent
+        bg_intent = self.detect_background_task_intent(request.message)
+        if bg_intent:
+            agent_type, clean_query, title = bg_intent
+            bg_task = await task_engine.create_task(
+                user_id=DEFAULT_USER_ID,
+                request=clean_query,
+                title=title,
+                assigned_agent=agent_type,
+                db=db,
+            )
+            response_text = (
+                f"I've initiated a background **{agent_type.capitalize()} Task** for you!\n\n"
+                f"- **Task ID**: `{bg_task.id}`\n"
+                f"- **Goal**: {title}\n"
+                f"- **Assigned Agent**: {agent_type.capitalize()} Agent\n\n"
+                f"I'll work on this persistently in the background. You can track live progress, "
+                f"inspect steps, or steer it anytime from the **Tasks** tab while we continue chatting."
+            )
+            assistant_msg_id = str(uuid.uuid4())
+            assistant_msg = Message(
+                id=assistant_msg_id,
+                conversation_id=conv_id,
+                role="assistant",
+                content=response_text,
+                model_used=f"nero:task-{agent_type}",
+            )
+            db.add(assistant_msg)
+            await db.commit()
+            return ChatResponse(
+                response=response_text,
+                conversation_id=conv_id,
+                message_id=assistant_msg_id,
+                model_used=f"nero:task-{agent_type}",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
 
         # Check for tool intent
         tool_action_context = ""
@@ -224,6 +293,46 @@ class AIOrchestrator:
             )
             init_db.add(user_msg)
             await init_db.commit()
+
+            # Background task intent detection
+            bg_intent = self.detect_background_task_intent(request.message)
+            if bg_intent:
+                agent_type, clean_query, title = bg_intent
+                bg_task = await task_engine.create_task(
+                    user_id=DEFAULT_USER_ID,
+                    request=clean_query,
+                    title=title,
+                    assigned_agent=agent_type,
+                    db=init_db,
+                )
+                ack_text = (
+                    f"I've initiated a background **{agent_type.capitalize()} Task** for you!\n\n"
+                    f"- **Task ID**: `{bg_task.id}`\n"
+                    f"- **Goal**: {title}\n"
+                    f"- **Assigned Agent**: {agent_type.capitalize()} Agent\n\n"
+                    f"I'll work on this persistently in the background. You can track live progress, "
+                    f"inspect steps, or steer it anytime from the **Tasks** tab while we continue chatting."
+                )
+                assistant_msg_id = str(uuid.uuid4())
+                start_payload = {
+                    "type": "start",
+                    "conversation_id": conv_id,
+                    "message_id": assistant_msg_id,
+                    "model_used": f"nero:task-{agent_type}",
+                }
+                yield f"data: {json.dumps(start_payload)}\n\n"
+                yield f"data: {json.dumps({'type': 'chunk', 'content': ack_text})}\n\n"
+                async with AsyncSessionLocal() as save_db:
+                    save_db.add(Message(
+                        id=assistant_msg_id,
+                        conversation_id=conv_id,
+                        role="assistant",
+                        content=ack_text,
+                        model_used=f"nero:task-{agent_type}",
+                    ))
+                    await save_db.commit()
+                yield f"data: {json.dumps({'type': 'done', 'content': ack_text})}\n\n"
+                return
 
             history = await self.get_conversation_history(init_db, conv_id, limit=8)
             mode = request.personality_mode or conversation.personality_mode
