@@ -130,7 +130,13 @@ export function MessageInput() {
                   setContent((prev) => (prev ? `${prev} ${text}` : text));
                 }
               } else {
-                await voiceService.startRecording();
+                await voiceService.startRecording({
+                  onSpeechCompleted: (text) => {
+                    if (text) {
+                      setContent((prev) => (prev ? `${prev} ${text}` : text));
+                    }
+                  },
+                });
               }
             }}
             className={`p-2 rounded-lg transition-all ${

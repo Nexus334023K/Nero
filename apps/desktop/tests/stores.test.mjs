@@ -468,4 +468,61 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(menuContent.includes('Open Audio & Settings'), 'Context menu offers Open Audio & Settings');
     assert.ok(menuContent.includes('Hide Companion'), 'Context menu offers Hide Companion');
   });
+
+  await t.test('Smart Voice Listening & Automatic Speech Detection Contracts', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+    // 1. Verify voiceStore defines smart listening state and presets
+    const voiceStorePath = path.resolve(__dirname, '../src/stores/voiceStore.ts');
+    const voiceStoreContent = await fs.readFile(voiceStorePath, 'utf8');
+    assert.ok(voiceStoreContent.includes('smartListeningEnabled'), 'voiceStore manages smartListeningEnabled');
+    assert.ok(voiceStoreContent.includes('silenceTimeoutMs'), 'voiceStore manages silenceTimeoutMs');
+    assert.ok(voiceStoreContent.includes('vadSensitivity'), 'voiceStore manages vadSensitivity');
+    assert.ok(voiceStoreContent.includes('conversationalMode'), 'voiceStore manages conversationalMode');
+    assert.ok(voiceStoreContent.includes('isSpeechDetected'), 'voiceStore tracks isSpeechDetected');
+    assert.ok(voiceStoreContent.includes('silenceProgress'), 'voiceStore tracks silenceProgress');
+    assert.ok(voiceStoreContent.includes('vadStatus'), 'voiceStore tracks vadStatus');
+    assert.ok(voiceStoreContent.includes('resetVadState'), 'voiceStore provides resetVadState');
+    assert.ok(voiceStoreContent.includes('nero_voice_settings_v1'), 'voiceStore persists settings to localStorage');
+
+    // 2. Verify VoiceActivityDetector service implementation
+    const vadPath = path.resolve(__dirname, '../src/services/vad.ts');
+    const vadContent = await fs.readFile(vadPath, 'utf8');
+    assert.ok(vadContent.includes('class VoiceActivityDetector'), 'VoiceActivityDetector class exported');
+    assert.ok(vadContent.includes('onSpeechStart'), 'VAD triggers onSpeechStart');
+    assert.ok(vadContent.includes('onSpeechEnd'), 'VAD triggers onSpeechEnd on silence');
+    assert.ok(vadContent.includes('onSilenceProgress'), 'VAD reports silence countdown progress');
+    assert.ok(vadContent.includes('onNoSpeechTimeout'), 'VAD cancels after no-speech timeout');
+    assert.ok(vadContent.includes('CALIBRATION_FRAMES'), 'VAD calibrates ambient noise floor');
+    assert.ok(vadContent.includes('getDynamicThreshold'), 'VAD calculates dynamic energy threshold');
+
+    // 3. Verify VoiceService integrates VAD, auto-completion and cancelRecording
+    const voiceServicePath = path.resolve(__dirname, '../src/services/voice.ts');
+    const voiceServiceContent = await fs.readFile(voiceServicePath, 'utf8');
+    assert.ok(voiceServiceContent.includes('VoiceActivityDetector'), 'VoiceService instantiates VAD');
+    assert.ok(voiceServiceContent.includes('onSpeechCompleted'), 'VoiceService supports onSpeechCompleted callback');
+    assert.ok(voiceServiceContent.includes('cancelRecording'), 'VoiceService provides safe cancelRecording method');
+    assert.ok(voiceServiceContent.includes('stopRecording'), 'VoiceService provides stopRecording');
+
+    // 4. Verify VoiceView UI incorporates live VAD feedback & dialogue loop
+    const voiceViewPath = path.resolve(__dirname, '../src/features/voice/VoiceView.tsx');
+    const voiceViewContent = await fs.readFile(voiceViewPath, 'utf8');
+    assert.ok(voiceViewContent.includes('isSpeechDetected'), 'VoiceView reflects speech detection state');
+    assert.ok(voiceViewContent.includes('silenceProgress'), 'VoiceView displays silence progress countdown');
+    assert.ok(voiceViewContent.includes('handleCancelRecord'), 'VoiceView provides manual cancellation');
+    assert.ok(voiceViewContent.includes('conversationalMode'), 'VoiceView supports continuous conversational dialogue loop');
+    assert.ok(voiceViewContent.includes('Push To Talk'), 'VoiceView retains Push To Talk compatibility');
+
+    // 5. Verify AudioDeviceSettings offers configurable silence timeouts and sensitivities
+    const audioSettingsPath = path.resolve(__dirname, '../src/features/settings/components/AudioDeviceSettings.tsx');
+    const audioSettingsContent = await fs.readFile(audioSettingsPath, 'utf8');
+    assert.ok(audioSettingsContent.includes('Smart Voice Listening & Silence Detection'), 'Settings section header present');
+    assert.ok(audioSettingsContent.includes('700'), '700ms short pause preset available');
+    assert.ok(audioSettingsContent.includes('1200'), '1200ms normal pause preset available');
+    assert.ok(audioSettingsContent.includes('1800'), '1800ms relaxed pause preset available');
+    assert.ok(audioSettingsContent.includes('vadSensitivity'), 'Speech detection sensitivity controls present');
+  });
 });

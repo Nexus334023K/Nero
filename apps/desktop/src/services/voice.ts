@@ -3,6 +3,11 @@ import { useAppStore } from '../stores/appStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import { useAudioStore } from '../stores/audioStore';
 import { audioDeviceService } from './audioDeviceService';
+import { VoiceActivityDetector } from './vad';
+
+export interface StartRecordingOptions {
+  onSpeechCompleted?: (text: string) => void;
+}
 
 class VoiceService {
   private mediaRecorder: MediaRecorder | null = null;
@@ -11,16 +16,26 @@ class VoiceService {
   private analyser: AnalyserNode | null = null;
   private animFrameId: number | null = null;
   private currentAudio: HTMLAudioElement | null = null;
+  private vad: VoiceActivityDetector | null = null;
+  private isStopping = false;
 
-  async startRecording(): Promise<boolean> {
+  async startRecording(options?: StartRecordingOptions): Promise<boolean> {
+    // Prevent duplicate recording instances
+    if (useVoiceStore.getState().isRecording) {
+      console.warn('Recording already active. Ignoring redundant start.');
+      return true;
+    }
+
     const voiceStore = useVoiceStore.getState();
     const appStore = useAppStore.getState();
     const audioStore = useAudioStore.getState();
 
     try {
+      this.isStopping = false;
       this.audioChunks = [];
+      voiceStore.resetVadState();
 
-      // Build recording constraints using selected microphone
+      // Build recording constraints using selected microphone from audioStore
       const constraints: MediaTrackConstraints = {
         echoCancellation: audioStore.echoCancellation,
         noiseSuppression: audioStore.noiseSuppression,
@@ -33,13 +48,16 @@ class VoiceService {
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
 
-      // Audio frequency analyzer for reactive waveform
+      // Audio frequency analyzer for reactive waveform & VAD
       try {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.audioContext = new AudioCtx();
         const source = this.audioContext.createMediaStreamSource(stream);
         this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 64;
+        this.analyser.fftSize = 256;
+        this.analyser.smoothingTimeConstant = 0.3;
         source.connect(this.analyser);
 
         const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
@@ -54,8 +72,61 @@ class VoiceService {
           }
         };
         updateLevel();
-      } catch {
-        // AudioContext optional for visualizer
+
+        // Initialize smart Voice Activity Detection if enabled
+        if (voiceStore.smartListeningEnabled) {
+          this.vad = new VoiceActivityDetector(
+            this.analyser,
+            {
+              onSpeechStart: () => {
+                const s = useVoiceStore.getState();
+                s.setIsSpeechDetected(true);
+                s.setVadStatus('speech_active');
+                s.setSilenceProgress(0);
+              },
+              onSpeechContinue: () => {
+                const s = useVoiceStore.getState();
+                if (!s.isSpeechDetected) s.setIsSpeechDetected(true);
+                s.setVadStatus('speech_active');
+                s.setSilenceProgress(0);
+              },
+              onSilenceProgress: (_remainingMs, ratio) => {
+                const s = useVoiceStore.getState();
+                s.setVadStatus('silence_counting');
+                s.setSilenceProgress(ratio);
+              },
+              onSpeechEnd: async () => {
+                const s = useVoiceStore.getState();
+                s.setVadStatus('processing');
+                s.setSilenceProgress(1);
+
+                // Auto-stop recording after user finish speaking
+                const transcribed = await this.stopRecording();
+                if (options?.onSpeechCompleted && transcribed) {
+                  options.onSpeechCompleted(transcribed);
+                }
+              },
+              onNoSpeechTimeout: () => {
+                console.log('[VAD] No speech detected in 10s. Cancelling cleanly.');
+                this.cancelRecording();
+              },
+              onMaxDurationTimeout: async () => {
+                console.log('[VAD] Max 60s speech limit reached. Auto-stopping.');
+                const transcribed = await this.stopRecording();
+                if (options?.onSpeechCompleted && transcribed) {
+                  options.onSpeechCompleted(transcribed);
+                }
+              },
+            },
+            {
+              silenceTimeoutMs: voiceStore.silenceTimeoutMs,
+              sensitivity: voiceStore.vadSensitivity,
+            }
+          );
+          this.vad.start();
+        }
+      } catch (e) {
+        console.warn('AudioContext / VAD setup exception:', e);
       }
 
       this.mediaRecorder = new MediaRecorder(stream);
@@ -65,6 +136,7 @@ class VoiceService {
 
       this.mediaRecorder.start(100);
       voiceStore.setIsRecording(true);
+      voiceStore.setVadStatus('listening');
       appStore.setAIState('listening');
       return true;
     } catch (err) {
@@ -77,13 +149,94 @@ class VoiceService {
   }
 
   async stopRecording(): Promise<string> {
+    if (this.isStopping) return '';
+    this.isStopping = true;
+
     const voiceStore = useVoiceStore.getState();
     const appStore = useAppStore.getState();
+
+    // 1. Stop VAD and level meter loop
+    if (this.vad) {
+      this.vad.stop();
+      this.vad = null;
+    }
+
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
 
     voiceStore.setIsRecording(false);
     voiceStore.setAudioLevel(0);
     voiceStore.setIsProcessing(true);
+    voiceStore.setVadStatus('processing');
     appStore.setAIState('thinking');
+
+    // 2. Stop MediaRecorder and transcribe
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      return new Promise<string>((resolve) => {
+        this.mediaRecorder!.onstop = async () => {
+          try {
+            const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
+            const audioBlob = new Blob(this.audioChunks, { type: mimeType });
+
+            // Stop and release audio tracks
+            this.mediaRecorder?.stream.getTracks().forEach((track) => track.stop());
+
+            // Close AudioContext
+            if (this.audioContext && this.audioContext.state !== 'closed') {
+              void this.audioContext.close().catch(() => {});
+              this.audioContext = null;
+            }
+
+            // Check if audio blob has meaningful content (avoid sending empty noise)
+            if (audioBlob.size < 500) {
+              voiceStore.setIsProcessing(false);
+              voiceStore.resetVadState();
+              appStore.setAIState('idle');
+              resolve('');
+              return;
+            }
+
+            const res = await api.voice.stt(audioBlob);
+            const text = res.text?.trim() || '';
+
+            voiceStore.setTranscribedText(text);
+            voiceStore.setIsProcessing(false);
+            voiceStore.resetVadState();
+            appStore.setAIState('idle');
+            resolve(text);
+          } catch {
+            const fallbackText = 'Hello NERO';
+            voiceStore.setTranscribedText(fallbackText);
+            voiceStore.setIsProcessing(false);
+            voiceStore.resetVadState();
+            appStore.setAIState('idle');
+            resolve(fallbackText);
+          } finally {
+            this.isStopping = false;
+          }
+        };
+
+        this.mediaRecorder!.stop();
+      });
+    }
+
+    // Fallback if mediaRecorder was mocked
+    voiceStore.setIsProcessing(false);
+    voiceStore.resetVadState();
+    appStore.setAIState('idle');
+    this.isStopping = false;
+    const dummy = 'Hello NERO';
+    voiceStore.setTranscribedText(dummy);
+    return dummy;
+  }
+
+  cancelRecording(): void {
+    if (this.vad) {
+      this.vad.stop();
+      this.vad = null;
+    }
 
     if (this.animFrameId) {
       cancelAnimationFrame(this.animFrameId);
@@ -91,40 +244,38 @@ class VoiceService {
     }
 
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      return new Promise<string>((resolve) => {
-        this.mediaRecorder!.onstop = async () => {
-          try {
-            const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
-            const audioBlob = new Blob(this.audioChunks, { type: mimeType });
-            // Stop tracks
-            this.mediaRecorder?.stream.getTracks().forEach((track) => track.stop());
-
-            const res = await api.voice.stt(audioBlob);
-            voiceStore.setTranscribedText(res.text);
-            voiceStore.setIsProcessing(false);
-            appStore.setAIState('idle');
-            resolve(res.text);
-          } catch {
-            const fallbackText = 'Hello NERO';
-            voiceStore.setTranscribedText(fallbackText);
-            voiceStore.setIsProcessing(false);
-            appStore.setAIState('idle');
-            resolve(fallbackText);
-          }
-        };
-        this.mediaRecorder!.stop();
-      });
+      this.mediaRecorder.stream.getTracks().forEach((track) => track.stop());
+      try {
+        this.mediaRecorder.stop();
+      } catch {
+        // ignore
+      }
     }
 
-    // Fallback if mediaRecorder was mocked
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      void this.audioContext.close().catch(() => {});
+      this.audioContext = null;
+    }
+
+    this.audioChunks = [];
+    this.isStopping = false;
+
+    const voiceStore = useVoiceStore.getState();
+    const appStore = useAppStore.getState();
+
+    voiceStore.setIsRecording(false);
+    voiceStore.setAudioLevel(0);
     voiceStore.setIsProcessing(false);
+    voiceStore.resetVadState();
     appStore.setAIState('idle');
-    const dummy = 'Hello NERO';
-    voiceStore.setTranscribedText(dummy);
-    return dummy;
   }
 
-  async speak(text: string, provider?: string, voiceId?: string): Promise<void> {
+  async speak(
+    text: string,
+    provider?: string,
+    voiceId?: string,
+    onComplete?: () => void
+  ): Promise<void> {
     if (!text || !text.trim()) return;
 
     const voiceStore = useVoiceStore.getState();
@@ -156,6 +307,7 @@ class VoiceService {
         appStore.setAIState('idle');
         URL.revokeObjectURL(audioUrl);
         this.currentAudio = null;
+        onComplete?.();
       };
 
       audio.onerror = () => {
@@ -163,6 +315,7 @@ class VoiceService {
         appStore.setAIState('idle');
         URL.revokeObjectURL(audioUrl);
         this.currentAudio = null;
+        onComplete?.();
       };
 
       await audio.play();
@@ -170,6 +323,7 @@ class VoiceService {
       console.warn('TTS playback error:', err);
       voiceStore.setIsSpeaking(false);
       appStore.setAIState('idle');
+      onComplete?.();
     }
   }
 

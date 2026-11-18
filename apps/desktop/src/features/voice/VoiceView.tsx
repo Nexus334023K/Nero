@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { useAppStore } from '../../stores/appStore';
 import { voiceService } from '../../services/voice';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
@@ -24,28 +25,104 @@ export function VoiceView() {
     wakeWordEnabled,
     transcribedText,
     audioLevel,
+    isSpeechDetected,
+    silenceProgress,
+    vadStatus,
+    smartListeningEnabled,
+    silenceTimeoutMs,
+    conversationalMode,
     setTtsProvider,
     setActiveVoiceId,
     setWakeWordEnabled,
+    setSmartListeningEnabled,
+    setConversationalMode,
   } = useVoiceStore();
 
+  const { personalityMode, setAIState } = useAppStore();
+
   const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [aiResponse, setAiResponse] = useState<string>('');
+  const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
+  const conversationalModeRef = useRef(conversationalMode);
+  conversationalModeRef.current = conversationalMode;
+
   const testPhrase = 'Greetings. NERO voice intelligence is online and operational.';
 
   useEffect(() => {
-    api.voice.getVoices()
+    api.voice
+      .getVoices()
       .then((res) => {
         if (res?.voices) setVoices(res.voices);
       })
       .catch(() => {});
   }, []);
 
-  const handleToggleRecord = async () => {
+  // Process completed speech utterance through STT -> AI -> TTS
+  const handleProcessSpeech = useCallback(
+    async (spokenText?: string) => {
+      let text = spokenText;
+      if (!text && isRecording) {
+        text = await voiceService.stopRecording();
+      }
+
+      if (!text || !text.trim()) {
+        setAIState('idle');
+        return;
+      }
+
+      try {
+        setIsAiThinking(true);
+        setAIState('thinking');
+
+        // Send to backend AI
+        const chatRes = await api.chat.send(text, undefined, personalityMode);
+        const reply = chatRes.response?.trim() || '';
+        setAiResponse(reply);
+        setIsAiThinking(false);
+
+        if (reply) {
+          // Speak AI response and trigger next loop if in conversational mode
+          await voiceService.speak(
+            reply,
+            ttsProvider,
+            activeVoiceId,
+            () => {
+              if (conversationalModeRef.current) {
+                // Short breather before re-arming mic
+                setTimeout(() => {
+                  void handleToggleRecord();
+                }, 400);
+              }
+            }
+          );
+        } else {
+          setAIState('idle');
+        }
+      } catch (err) {
+        console.error('Error processing voice query:', err);
+        setIsAiThinking(false);
+        setAIState('idle');
+      }
+    },
+    [isRecording, personalityMode, setAIState, ttsProvider, activeVoiceId]
+  );
+
+  const handleToggleRecord = useCallback(async () => {
     if (isRecording) {
-      await voiceService.stopRecording();
+      await handleProcessSpeech();
     } else {
-      await voiceService.startRecording();
+      setAiResponse('');
+      await voiceService.startRecording({
+        onSpeechCompleted: (text) => {
+          void handleProcessSpeech(text);
+        },
+      });
     }
+  }, [isRecording, handleProcessSpeech]);
+
+  const handleCancelRecord = () => {
+    voiceService.cancelRecording();
+    setAIState('idle');
   };
 
   const handleTestVoice = async () => {
@@ -68,8 +145,39 @@ export function VoiceView() {
           </p>
         </div>
 
-        {/* Wake Word Badge */}
+        {/* Mode Toggles */}
         <div className="flex items-center gap-3">
+          {/* Smart Auto-Stop Toggle */}
+          <button
+            onClick={() => setSmartListeningEnabled(!smartListeningEnabled)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
+              smartListeningEnabled
+                ? 'border-nero-cyan/50 bg-nero-cyan/10 text-nero-cyan'
+                : 'border-white/10 bg-white/5 text-nero-muted hover:text-white'
+            }`}
+            title="Automatically stop recording when you pause speaking"
+          >
+            <span>🎙️</span>
+            <span>Auto-Stop:</span>
+            <strong className="uppercase">{smartListeningEnabled ? 'ON' : 'OFF'}</strong>
+          </button>
+
+          {/* Conversational Auto-Reply Loop */}
+          <button
+            onClick={() => setConversationalMode(!conversationalMode)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
+              conversationalMode
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
+                : 'border-white/10 bg-white/5 text-nero-muted hover:text-white'
+            }`}
+            title="Continuous conversational hands-free dialogue"
+          >
+            <span>💬</span>
+            <span>Dialogue Loop:</span>
+            <strong className="uppercase">{conversationalMode ? 'ACTIVE' : 'OFF'}</strong>
+          </button>
+
+          {/* Wake Word Badge */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5">
             <span className="text-xs text-nero-muted font-mono">Wake-Word:</span>
             <span className="text-xs text-nero-cyan font-semibold font-mono">"NERO"</span>
@@ -116,7 +224,9 @@ export function VoiceView() {
             onClick={handleToggleRecord}
             className={`w-36 h-36 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-300 shadow-2xl relative z-10 select-none ${
               isRecording
-                ? 'bg-gradient-to-tr from-amber-500 to-amber-300 text-black shadow-[0_0_50px_rgba(245,158,11,0.6)]'
+                ? isSpeechDetected
+                  ? 'bg-gradient-to-tr from-cyan-500 to-emerald-400 text-black shadow-[0_0_60px_rgba(0,212,255,0.7)]'
+                  : 'bg-gradient-to-tr from-amber-500 to-amber-300 text-black shadow-[0_0_50px_rgba(245,158,11,0.6)]'
                 : isSpeaking
                 ? 'bg-gradient-to-tr from-emerald-500 to-emerald-300 text-black shadow-[0_0_50px_rgba(16,185,129,0.6)]'
                 : 'bg-gradient-to-tr from-nero-blue to-nero-cyan text-white shadow-[0_0_40px_rgba(0,212,255,0.4)] hover:shadow-[0_0_60px_rgba(0,212,255,0.7)]'
@@ -127,11 +237,15 @@ export function VoiceView() {
             {isRecording ? (
               <>
                 <motion.div
-                  className="w-8 h-8 rounded-md bg-black mb-1"
-                  animate={{ scale: [1, 0.9, 1] }}
-                  transition={{ repeat: Infinity, duration: 1 }}
-                />
-                <span className="text-[11px] font-bold tracking-wider uppercase">Listening</span>
+                  className="w-8 h-8 rounded-md bg-black mb-1 flex items-center justify-center"
+                  animate={{ scale: isSpeechDetected ? [1, 1.15, 1] : [1, 0.9, 1] }}
+                  transition={{ repeat: Infinity, duration: isSpeechDetected ? 0.6 : 1 }}
+                >
+                  {isSpeechDetected && <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />}
+                </motion.div>
+                <span className="text-[11px] font-bold tracking-wider uppercase">
+                  {isSpeechDetected ? 'Speaking' : 'Listening'}
+                </span>
               </>
             ) : isSpeaking ? (
               <>
@@ -147,10 +261,12 @@ export function VoiceView() {
                 </div>
                 <span className="text-[11px] font-bold tracking-wider uppercase">Speaking</span>
               </>
-            ) : isProcessing ? (
+            ) : isProcessing || isAiThinking ? (
               <>
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mb-1" />
-                <span className="text-[11px] font-semibold tracking-wider uppercase">Processing</span>
+                <span className="text-[11px] font-semibold tracking-wider uppercase">
+                  {isAiThinking ? 'Thinking' : 'Transcribing'}
+                </span>
               </>
             ) : (
               <>
@@ -164,27 +280,75 @@ export function VoiceView() {
           </motion.button>
         </div>
 
-        {/* State Label */}
-        <p className="text-xs font-mono text-nero-muted mt-4">
+        {/* Live VAD Activity & Silence Countdown Ring */}
+        {isRecording && (
+          <div className="flex flex-col items-center gap-2 mt-2 w-64">
+            {/* Visual Indicators */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isSpeechDetected ? 'bg-cyan-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              <span className="text-xs font-mono font-medium text-nero-text">
+                {isSpeechDetected
+                  ? vadStatus === 'silence_counting'
+                    ? `Pause detected (${Math.round((1 - silenceProgress) * silenceTimeoutMs)}ms)`
+                    : 'Voice active — Listening...'
+                  : 'Waiting for your speech...'}
+              </span>
+            </div>
+
+            {/* Silence countdown progress bar */}
+            {vadStatus === 'silence_counting' && (
+              <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden border border-white/10">
+                <div
+                  className="bg-cyan-400 h-full rounded-full transition-all duration-75"
+                  style={{ width: `${silenceProgress * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Contextual State Label */}
+        <p className="text-xs font-mono text-nero-muted mt-3 text-center max-w-md">
           {isRecording
-            ? 'Speaking to NERO... click orb to finish'
+            ? smartListeningEnabled
+              ? 'Speak naturally — NERO will automatically detect when you finish and respond'
+              : 'Speaking to NERO... click orb to finish'
             : isSpeaking
             ? 'Synthesizing voice response...'
             : isProcessing
             ? 'Transcribing speech with Whisper...'
+            : isAiThinking
+            ? 'Processing thoughts with AI model...'
             : 'Click orb or use hotkey to begin speaking'}
         </p>
 
-        {isSpeaking && (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => voiceService.stopSpeaking()}
-            className="mt-3"
-          >
-            Stop Audio Playback
-          </Button>
-        )}
+        {/* Controls during active states */}
+        <div className="flex items-center gap-2 mt-3">
+          {isRecording && (
+            <>
+              <Button variant="secondary" size="sm" onClick={() => void handleProcessSpeech()}>
+                Finish Speaking Now
+              </Button>
+              <Button variant="danger" size="sm" onClick={handleCancelRecord}>
+                Cancel
+              </Button>
+            </>
+          )}
+
+          {isSpeaking && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => voiceService.stopSpeaking()}
+            >
+              Stop Audio Playback
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Transcribed Speech & Controls Cards */}
@@ -198,13 +362,22 @@ export function VoiceView() {
             <span className="text-[10px] text-nero-muted font-mono">Whisper STT</span>
           </div>
 
-          <div className="flex-1 min-h-[90px] p-3 rounded-lg bg-black/40 border border-white/5 font-sans text-sm text-nero-text">
+          <div className="flex-1 min-h-[90px] p-3 rounded-lg bg-black/40 border border-white/5 font-sans text-sm text-nero-text flex flex-col justify-between">
             {transcribedText ? (
               <p className="leading-relaxed">{transcribedText}</p>
             ) : (
               <p className="text-nero-muted/50 italic text-xs">
                 Your transcribed speech will appear here automatically when you speak...
               </p>
+            )}
+
+            {aiResponse && (
+              <div className="mt-3 pt-3 border-t border-white/5 text-xs text-nero-cyan">
+                <span className="font-mono text-[10px] uppercase text-nero-muted block mb-1">
+                  NERO Response:
+                </span>
+                <p className="italic leading-relaxed">{aiResponse}</p>
+              </div>
             )}
           </div>
         </Card>
