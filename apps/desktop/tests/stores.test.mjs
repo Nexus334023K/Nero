@@ -124,6 +124,7 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     assert.ok(apiContent.includes('/voice/stt'), 'STT transcription endpoint configured');
     assert.ok(apiContent.includes('/voice/settings'), 'Voice settings endpoint configured');
     assert.ok(apiContent.includes('/voice/voices'), 'Voice listing endpoint configured');
+    assert.ok(apiContent.includes('/voice/test'), 'Voice testing endpoint configured');
     assert.ok(apiContent.includes('fish_audio_api_key'), 'Fish audio API key schema supported');
 
     // Verify VoiceView file exists
@@ -133,6 +134,25 @@ test('NERO Store and Contract Unit Tests', async (t) => {
     );
     assert.ok(voiceViewContent.includes('Fish Audio'), 'Fish audio referenced in VoiceView');
     assert.ok(voiceViewContent.includes('Push To Talk'), 'Push to talk supported');
+    assert.ok(voiceViewContent.includes('ttsError'), 'TTS error banner integrated in VoiceView');
+
+    // Verify voiceStore persistence and fields
+    const voiceStoreContent = await fs.readFile(
+      path.resolve(__dirname, '../src/stores/voiceStore.ts'),
+      'utf8'
+    );
+    assert.ok(voiceStoreContent.includes('fishApiKey'), 'fishApiKey in voiceStore');
+    assert.ok(voiceStoreContent.includes('fishRefId'), 'fishRefId in voiceStore');
+    assert.ok(voiceStoreContent.includes('ttsError'), 'ttsError in voiceStore');
+
+    // Verify SettingsView Fish Audio UI and test button
+    const settingsContent = await fs.readFile(
+      path.resolve(__dirname, '../src/features/settings/SettingsView.tsx'),
+      'utf8'
+    );
+    assert.ok(settingsContent.includes('Test Fish Audio Voice'), 'Dedicated Fish Audio test button present');
+    assert.ok(settingsContent.includes('reference_id'), 'reference_id documented in UI');
+    assert.ok(settingsContent.includes('s2.1-pro'), 's2.1-pro model badge rendered');
   });
 
   await t.test('Phase 4 Persistent Vector Memory & ChromaDB contracts', async () => {

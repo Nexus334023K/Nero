@@ -1,0 +1,14 @@
+{
+  "tts_provider": "fish_audio",
+  "stt_provider": "whisper",
+  "wake_word_enabled": true,
+  "wake_word": "nero",
+  "fish_audio_api_key": "fish_key_persistent_xyz",
+  "fish_audio_reference_id": "custom_voice_persistent_789",
+  "fish_audio_model": "s2.1-pro",
+  "elevenlabs_api_key": null,
+  "elevenlabs_voice_id": null,
+  "piper_voice": "en_US-lessac-medium",
+  "speed": 1.1,
+  "allow_fallback": false
+}

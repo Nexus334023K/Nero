@@ -11,16 +11,22 @@ class TTSFactory:
     _instances: Dict[str, BaseTTSProvider] = {}
 
     @classmethod
+    def clear_cache(cls):
+        cls._instances.clear()
+
+    @classmethod
     def get_provider(
         cls,
         name: str = "mock",
         fish_audio_api_key: Optional[str] = None,
         fish_audio_reference_id: Optional[str] = None,
+        fish_audio_model: Optional[str] = None,
         elevenlabs_api_key: Optional[str] = None,
         elevenlabs_voice_id: Optional[str] = None,
         piper_voice: str = "en_US-lessac-medium",
+        allow_fallback: bool = False,
     ) -> BaseTTSProvider:
-        key = f"{name}:{fish_audio_api_key}:{elevenlabs_api_key}:{piper_voice}"
+        key = f"{name}:{fish_audio_api_key}:{fish_audio_reference_id}:{fish_audio_model}:{elevenlabs_api_key}:{elevenlabs_voice_id}:{piper_voice}:{allow_fallback}"
         if key in cls._instances:
             return cls._instances[key]
 
@@ -29,6 +35,8 @@ class TTSFactory:
             provider = FishAudioTTSProvider(
                 api_key=fish_audio_api_key,
                 default_reference_id=fish_audio_reference_id,
+                model=fish_audio_model,
+                allow_fallback=allow_fallback,
             )
         elif name == "elevenlabs":
             provider = ElevenLabsTTSProvider(

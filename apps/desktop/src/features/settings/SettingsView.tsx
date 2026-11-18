@@ -237,19 +237,26 @@ export function SettingsView() {
     ttsProvider,
     setTtsProvider,
     activeVoiceId,
+    setActiveVoiceId,
     wakeWordEnabled,
     setWakeWordEnabled,
     speed,
     setSpeed,
+    fishApiKey: storedFishKey,
+    fishRefId: storedFishRef,
+    setFishApiKey: setStoredFishKey,
+    setFishRefId: setStoredFishRef,
   } = useVoiceStore();
   const { tools, fetchTools, updateToolPermission } = useToolsStore();
   const [providers, setProviders] = useState<ProviderItem[]>([]);
   const [activeProviderName, setActiveProviderName] = useState<string>('offline');
-  const [fishApiKey, setFishApiKey] = useState('');
-  const [fishRefId, setFishRefId] = useState('');
+  const [fishApiKey, setFishApiKey] = useState(storedFishKey || '');
+  const [fishRefId, setFishRefId] = useState(storedFishRef || '');
+  const [showFishKey, setShowFishKey] = useState(false);
   const [elevenApiKey, setElevenApiKey] = useState('');
   const [voiceSaveStatus, setVoiceSaveStatus] = useState<string | null>(null);
   const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [fishTestFeedback, setFishTestFeedback] = useState<{ success?: boolean; message?: string } | null>(null);
 
   useEffect(() => {
     api.voice
@@ -257,37 +264,86 @@ export function SettingsView() {
       .then((s) => {
         if (s) {
           if (s.tts_provider) setTtsProvider(s.tts_provider);
-          if (s.fish_audio_api_key) setFishApiKey(s.fish_audio_api_key);
-          if (s.fish_audio_reference_id) setFishRefId(s.fish_audio_reference_id);
+          if (s.fish_audio_api_key) {
+            setFishApiKey(s.fish_audio_api_key);
+            setStoredFishKey(s.fish_audio_api_key);
+          } else if (storedFishKey) {
+            setFishApiKey(storedFishKey);
+          }
+          if (s.fish_audio_reference_id) {
+            setFishRefId(s.fish_audio_reference_id);
+            setStoredFishRef(s.fish_audio_reference_id);
+          } else if (storedFishRef) {
+            setFishRefId(storedFishRef);
+          }
           if (s.elevenlabs_api_key) setElevenApiKey(s.elevenlabs_api_key);
           if (s.wake_word_enabled !== undefined) setWakeWordEnabled(s.wake_word_enabled);
           if (s.speed) setSpeed(s.speed);
         }
       })
       .catch(() => {});
-  }, [setTtsProvider, setWakeWordEnabled, setSpeed]);
+  }, [setTtsProvider, setWakeWordEnabled, setSpeed, storedFishKey, storedFishRef, setStoredFishKey, setStoredFishRef]);
 
   const handleSaveVoiceSettings = async () => {
     try {
       await api.voice.updateSettings({
         tts_provider: ttsProvider,
-        fish_audio_api_key: fishApiKey,
-        fish_audio_reference_id: fishRefId,
-        elevenlabs_api_key: elevenApiKey,
+        fish_audio_api_key: fishApiKey.trim(),
+        fish_audio_reference_id: fishRefId.trim(),
+        elevenlabs_api_key: elevenApiKey.trim(),
         wake_word_enabled: wakeWordEnabled,
         speed,
+        allow_fallback: false,
       });
-      setVoiceSaveStatus('Saved!');
-      setTimeout(() => setVoiceSaveStatus(null), 3000);
+      setStoredFishKey(fishApiKey.trim());
+      setStoredFishRef(fishRefId.trim());
+      if (fishRefId.trim()) {
+        setActiveVoiceId(fishRefId.trim());
+      }
+      setVoiceSaveStatus('Voice settings saved and active!');
+      setTimeout(() => setVoiceSaveStatus(null), 3500);
     } catch {
-      setVoiceSaveStatus('Error saving');
+      setVoiceSaveStatus('Error saving voice settings.');
     }
   };
 
   const handleTestVoice = async () => {
     setIsTestingVoice(true);
-    await voiceService.speak('NERO voice engine test. Speech synthesis verified.', ttsProvider, activeVoiceId);
+    setFishTestFeedback(null);
+
+    // Ensure backend has current credentials before playing
+    try {
+      await api.voice.updateSettings({
+        tts_provider: ttsProvider,
+        fish_audio_api_key: fishApiKey.trim(),
+        fish_audio_reference_id: fishRefId.trim(),
+        elevenlabs_api_key: elevenApiKey.trim(),
+        wake_word_enabled: wakeWordEnabled,
+        speed,
+        allow_fallback: false,
+      });
+    } catch {}
+
+    const targetVoice = fishRefId.trim() || activeVoiceId;
+    const testText = ttsProvider === 'fish_audio'
+      ? 'Hello, this is Nero testing Fish Audio speech synthesis.'
+      : 'NERO voice engine test. Speech synthesis verified.';
+
+    const ok = await voiceService.speak(testText, ttsProvider, targetVoice);
     setIsTestingVoice(false);
+
+    if (ok) {
+      setFishTestFeedback({
+        success: true,
+        message: 'Speech synthesized and playing successfully!',
+      });
+    } else {
+      const err = useVoiceStore.getState().ttsError || 'Failed to synthesize speech.';
+      setFishTestFeedback({
+        success: false,
+        message: err,
+      });
+    }
   };
 
   const loadProviders = async () => {
@@ -524,19 +580,33 @@ export function SettingsView() {
           {ttsProvider === 'fish_audio' && (
             <div className="p-4 rounded-xl border border-nero-cyan/20 bg-nero-cyan/5 flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-nero-cyan font-mono uppercase tracking-wider">
-                  Fish Audio Configuration
-                </span>
-                <span className="text-[10px] text-nero-muted">Ultra-fast Neural Streaming</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-nero-cyan font-mono uppercase tracking-wider">
+                    Fish Audio Configuration
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-nero-cyan/10 border border-nero-cyan/30 text-nero-cyan font-mono">
+                    Model: s2.1-pro
+                  </span>
+                </div>
+                <span className="text-[10px] text-nero-muted">Official v1 Neural Audio</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-mono uppercase text-nero-muted block mb-1">
-                    Fish Audio API Key
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-mono uppercase text-nero-muted block">
+                      Fish Audio API Key *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowFishKey(!showFishKey)}
+                      className="text-[10px] text-nero-cyan hover:underline font-mono"
+                    >
+                      {showFishKey ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
                   <input
-                    type="password"
+                    type={showFishKey ? 'text' : 'password'}
                     placeholder="Enter Fish Audio API Key..."
                     value={fishApiKey}
                     onChange={(e) => setFishApiKey(e.target.value)}
@@ -546,7 +616,7 @@ export function SettingsView() {
 
                 <div>
                   <label className="text-[10px] font-mono uppercase text-nero-muted block mb-1">
-                    Voice Reference ID (Model ID)
+                    Voice Reference ID (reference_id)
                   </label>
                   <input
                     type="text"
@@ -555,7 +625,40 @@ export function SettingsView() {
                     onChange={(e) => setFishRefId(e.target.value)}
                     className="w-full text-xs font-mono bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-nero-text focus:border-nero-cyan/50 outline-none"
                   />
+                  <span className="text-[10px] text-nero-muted block mt-1">
+                    Default: <code>54f224d5500e482390f77977a41496d0</code> (Fish Natural)
+                  </span>
                 </div>
+              </div>
+
+              {/* Dedicated Fish Audio Test & Feedback */}
+              <div className="pt-2 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleTestVoice}
+                    disabled={isTestingVoice || !fishApiKey.trim()}
+                    className="text-xs font-mono"
+                  >
+                    {isTestingVoice ? 'Synthesizing & Playing...' : '🔊 Test Fish Audio Voice'}
+                  </Button>
+                  <span className="text-[10px] text-nero-muted font-mono">
+                    Tests live endpoint & plays returned MP3 speech
+                  </span>
+                </div>
+
+                {fishTestFeedback && (
+                  <div
+                    className={`text-xs px-3 py-1 rounded-lg border font-mono ${
+                      fishTestFeedback.success
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                        : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+                    }`}
+                  >
+                    {fishTestFeedback.message}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -621,6 +724,11 @@ export function SettingsView() {
               </Button>
             </div>
           </div>
+          {voiceSaveStatus && (
+            <div className="text-xs font-mono text-center py-1 text-nero-cyan bg-nero-cyan/10 rounded border border-nero-cyan/30">
+              {voiceSaveStatus}
+            </div>
+          )}
         </Card>
       </section>
 

@@ -13,6 +13,10 @@ export interface VoiceSettings {
   speed: number;
   wakeWordEnabled: boolean;
   wakeWord: string;
+  fishApiKey?: string;
+  fishRefId?: string;
+  fishModel?: string;
+  allowFallback?: boolean;
 }
 
 const STORAGE_KEY = 'nero_voice_settings_v1';
@@ -32,6 +36,10 @@ function loadSavedVoiceSettings(): VoiceSettings {
         speed: typeof parsed.speed === 'number' ? parsed.speed : 1.0,
         wakeWordEnabled: parsed.wakeWordEnabled ?? false,
         wakeWord: parsed.wakeWord || 'nero',
+        fishApiKey: parsed.fishApiKey || '',
+        fishRefId: parsed.fishRefId || '',
+        fishModel: parsed.fishModel || 's2.1-pro',
+        allowFallback: parsed.allowFallback ?? false,
       };
     }
   } catch {
@@ -47,6 +55,10 @@ function loadSavedVoiceSettings(): VoiceSettings {
     speed: 1.0,
     wakeWordEnabled: false,
     wakeWord: 'nero',
+    fishApiKey: '',
+    fishRefId: '',
+    fishModel: 's2.1-pro',
+    allowFallback: false,
   };
 }
 
@@ -71,6 +83,9 @@ export interface VoiceState extends VoiceSettings {
   silenceProgress: number; // 0.0 to 1.0 (countdown to auto-stop)
   vadStatus: VADStatus;
 
+  // Diagnostics & errors
+  ttsError: string | null;
+
   setIsRecording: (isRecording: boolean) => void;
   setIsProcessing: (isProcessing: boolean) => void;
   setIsSpeaking: (isSpeaking: boolean) => void;
@@ -82,6 +97,11 @@ export interface VoiceState extends VoiceSettings {
   setAudioLevel: (level: number) => void;
   setLastSpokenText: (text: string) => void;
   setSpeed: (speed: number) => void;
+  setTtsError: (ttsError: string | null) => void;
+  setFishApiKey: (key: string) => void;
+  setFishRefId: (refId: string) => void;
+  setFishModel: (model: string) => void;
+  setAllowFallback: (allowed: boolean) => void;
 
   // Smart Voice & VAD actions
   setSmartListeningEnabled: (enabled: boolean) => void;
@@ -109,6 +129,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => {
       speed: s.speed,
       wakeWordEnabled: s.wakeWordEnabled,
       wakeWord: s.wakeWord,
+      fishApiKey: s.fishApiKey,
+      fishRefId: s.fishRefId,
+      fishModel: s.fishModel,
+      allowFallback: s.allowFallback,
     });
   };
 
@@ -123,6 +147,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => {
     isSpeechDetected: false,
     silenceProgress: 0,
     vadStatus: 'idle',
+    ttsError: null,
 
     setIsRecording: (isRecording) => set({ isRecording }),
     setIsProcessing: (isProcessing) => set({ isProcessing }),
@@ -148,6 +173,23 @@ export const useVoiceStore = create<VoiceState>((set, get) => {
     setLastSpokenText: (lastSpokenText) => set({ lastSpokenText }),
     setSpeed: (speed) => {
       set({ speed });
+      persistSettings();
+    },
+    setTtsError: (ttsError) => set({ ttsError }),
+    setFishApiKey: (fishApiKey) => {
+      set({ fishApiKey });
+      persistSettings();
+    },
+    setFishRefId: (fishRefId) => {
+      set({ fishRefId });
+      persistSettings();
+    },
+    setFishModel: (fishModel) => {
+      set({ fishModel });
+      persistSettings();
+    },
+    setAllowFallback: (allowFallback) => {
+      set({ allowFallback });
       persistSettings();
     },
 

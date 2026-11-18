@@ -31,6 +31,7 @@ export function VoiceView() {
     smartListeningEnabled,
     silenceTimeoutMs,
     conversationalMode,
+    ttsError,
     setTtsProvider,
     setActiveVoiceId,
     setWakeWordEnabled,
@@ -194,6 +195,17 @@ export function VoiceView() {
           </div>
         </div>
       </div>
+
+      {/* TTS Diagnostics Alert */}
+      {ttsError && (
+        <div className="mt-4 p-3 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-300 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>⚠️</span>
+            <span><strong>Voice Synthesis Warning:</strong> {ttsError}</span>
+          </div>
+          <span className="text-[10px] text-rose-400 font-mono">Check Settings -&gt; Voice</span>
+        </div>
+      )}
 
       {/* Main Interactive Centerpiece */}
       <div className="flex-1 flex flex-col items-center justify-center my-8">

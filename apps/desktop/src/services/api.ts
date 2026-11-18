@@ -193,10 +193,32 @@ export const api = {
         body: JSON.stringify({ text, provider, voice_id: voiceId, speed }),
       });
       if (!res.ok) {
-        throw new ApiError(res.status, `TTS error: ${res.status} ${res.statusText}`);
+        let errorDetail = `TTS error: ${res.status} ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData?.detail) errorDetail = errData.detail;
+        } catch {
+          try {
+            const errText = await res.text();
+            if (errText) errorDetail = errText;
+          } catch {}
+        }
+        throw new ApiError(res.status, errorDetail);
       }
       return res.blob();
     },
+    testVoice: (payload: { provider?: string; api_key?: string; voice_id?: string; text?: string; model?: string }) =>
+      request<{
+        success: boolean;
+        provider: string;
+        message: string;
+        audio_size_bytes: number;
+        content_type: string;
+        error?: string;
+      }>('/voice/test', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
     stt: async (audioBlob: Blob): Promise<{ text: string; confidence: number; language: string; duration_seconds: number }> => {
       const formData = new FormData();
       formData.append('file', audioBlob, 'recording.wav');

@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, ApiError } from './api';
 import { useAppStore } from '../stores/appStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import { useAudioStore } from '../stores/audioStore';
@@ -275,13 +275,15 @@ class VoiceService {
     provider?: string,
     voiceId?: string,
     onComplete?: () => void
-  ): Promise<void> {
-    if (!text || !text.trim()) return;
+  ): Promise<boolean> {
+    if (!text || !text.trim()) return false;
 
     const voiceStore = useVoiceStore.getState();
     const appStore = useAppStore.getState();
 
     try {
+      voiceStore.setTtsError(null);
+
       if (this.currentAudio) {
         this.currentAudio.pause();
         this.currentAudio = null;
@@ -293,7 +295,15 @@ class VoiceService {
 
       const targetProvider = provider || voiceStore.ttsProvider;
       const targetVoice = voiceId || voiceStore.activeVoiceId;
+
+      console.log(`[TTS] Requesting synthesis | Provider: ${targetProvider} | Voice: ${targetVoice || '(default)'} | Length: ${text.length}`);
+
       const audioBlob = await api.voice.tts(text, targetProvider, targetVoice, voiceStore.speed);
+      console.log(`[TTS] Audio received | MIME: ${audioBlob.type} | Bytes: ${audioBlob.size}`);
+
+      if (audioBlob.size === 0) {
+        throw new Error('Received 0 bytes of audio from TTS service.');
+      }
 
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
@@ -311,6 +321,9 @@ class VoiceService {
       };
 
       audio.onerror = () => {
+        const mediaErr = audio.error ? `Audio decode error (${audio.error.code}): ${audio.error.message}` : 'Audio decoding/playback failed';
+        console.error('[TTS] Playback error:', mediaErr);
+        voiceStore.setTtsError(mediaErr);
         voiceStore.setIsSpeaking(false);
         appStore.setAIState('idle');
         URL.revokeObjectURL(audioUrl);
@@ -319,11 +332,16 @@ class VoiceService {
       };
 
       await audio.play();
+      console.log('[TTS] Playback started');
+      return true;
     } catch (err) {
-      console.warn('TTS playback error:', err);
+      const errMessage = err instanceof ApiError ? err.message : (err instanceof Error ? err.message : 'Speech synthesis failed');
+      console.error('[TTS] Synthesis/playback failure:', errMessage);
+      voiceStore.setTtsError(errMessage);
       voiceStore.setIsSpeaking(false);
       appStore.setAIState('idle');
       onComplete?.();
+      return false;
     }
   }
 
