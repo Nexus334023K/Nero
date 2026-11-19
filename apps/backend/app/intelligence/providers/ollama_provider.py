@@ -43,14 +43,30 @@ class OllamaProvider(BaseAIProvider):
     def set_model(self, model_name: str) -> None:
         self._model_name = model_name
 
-    async def check_health(self) -> bool:
-        url = f"{self._base_url}/api/tags"
+    async def test_connection(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+    ) -> tuple[bool, str]:
+        target_base = (base_url or self._base_url or "http://localhost:11434").rstrip("/")
+        url = f"{target_base}/api/tags"
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=4.0) as client:
                 res = await client.get(url)
-                return res.status_code == 200
-        except Exception:
-            return False
+                if res.status_code == 200:
+                    return True, "Connected to Ollama local instance"
+                return False, f"Ollama returned HTTP {res.status_code}"
+        except httpx.ConnectError:
+            return False, f"Ollama service not running at {target_base} (connection refused)"
+        except httpx.TimeoutException:
+            return False, "Ollama connection timed out"
+        except Exception as e:
+            return False, f"Ollama connection error: {str(e)}"
+
+    async def check_health(self) -> bool:
+        ok, _ = await self.test_connection()
+        return ok
 
     def _build_messages(
         self,

@@ -33,6 +33,14 @@ class OfflineProvider(BaseAIProvider):
     async def check_health(self) -> bool:
         return True
 
+    async def test_connection(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+    ) -> tuple[bool, str]:
+        return True, "Built-in offline engine active"
+
     def _determine_response(
         self,
         prompt: str,

@@ -151,14 +151,20 @@ export const api = {
   },
   providers: {
     list: () => request<ProviderListResponse>('/providers'),
-    test: (data: { provider: string }) =>
-      request<{ status: string; provider: string; success: boolean; latency_ms?: number; message?: string }>(
-        '/providers/test',
-        {
-          method: 'POST',
-          body: JSON.stringify(data),
-        },
-      ),
+    test: (data: { provider: string; api_key?: string; model?: string; base_url?: string }) =>
+      request<{
+        status?: string;
+        provider?: string;
+        name?: string;
+        success: boolean;
+        available?: boolean;
+        latency_ms?: number;
+        message?: string;
+        error?: string;
+      }>('/providers/test', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     saveConfig: (data: {
       provider: string;
       api_key?: string;

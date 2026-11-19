@@ -21,7 +21,11 @@ interface ProviderCardConfigProps {
   defaultBaseUrl?: string;
   hasApiKey?: boolean;
   onSave: (config: { apiKey?: string; model?: string; baseUrl?: string; isActive: boolean }) => Promise<void>;
-  onTest: () => Promise<{ success: boolean; latency_ms?: number; message?: string }>;
+  onTest: (config?: { apiKey?: string; model?: string; baseUrl?: string }) => Promise<{
+    success: boolean;
+    latency_ms?: number;
+    message?: string;
+  }>;
 }
 
 function ProviderConfigCard({
@@ -56,11 +60,15 @@ function ProviderConfigCard({
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await onTest();
+      const res = await onTest({
+        apiKey: apiKey.trim() || undefined,
+        model: model.trim() || undefined,
+        baseUrl: baseUrl.trim() || undefined,
+      });
       if (res.success) {
         setTestResult({
           success: true,
-          text: `Online (${res.latency_ms ?? 120}ms)`,
+          text: `Online (${Math.round(res.latency_ms ?? 120)}ms)`,
         });
       } else {
         setTestResult({
@@ -377,8 +385,16 @@ export function SettingsView() {
     await loadProviders();
   };
 
-  const handleProviderTest = async (providerId: string) => {
-    return await api.providers.test({ provider: providerId });
+  const handleProviderTest = async (
+    providerId: string,
+    cfg?: { apiKey?: string; model?: string; baseUrl?: string },
+  ) => {
+    return await api.providers.test({
+      provider: providerId,
+      api_key: cfg?.apiKey,
+      model: cfg?.model,
+      base_url: cfg?.baseUrl,
+    });
   };
 
   const personalityModes: Array<{ id: PersonalityMode; label: string; desc: string }> = [
@@ -439,7 +455,7 @@ export function SettingsView() {
             models={['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-2.5-flash']}
             defaultModel={geminiInfo?.default_model || 'gemini-flash-lite-latest'}
             onSave={(cfg) => handleProviderSave('gemini', cfg)}
-            onTest={() => handleProviderTest('gemini')}
+            onTest={(cfg) => handleProviderTest('gemini', cfg)}
           />
 
           {/* OpenAI */}
@@ -453,7 +469,7 @@ export function SettingsView() {
             models={['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo']}
             defaultModel={openaiInfo?.default_model || 'gpt-4o-mini'}
             onSave={(cfg) => handleProviderSave('openai', cfg)}
-            onTest={() => handleProviderTest('openai')}
+            onTest={(cfg) => handleProviderTest('openai', cfg)}
           />
 
           {/* Ollama */}
@@ -468,7 +484,7 @@ export function SettingsView() {
             defaultBaseUrl="http://localhost:11434"
             defaultModel={ollamaInfo?.default_model || 'llama3.2'}
             onSave={(cfg) => handleProviderSave('ollama', cfg)}
-            onTest={() => handleProviderTest('ollama')}
+            onTest={(cfg) => handleProviderTest('ollama', cfg)}
           />
 
           {/* Built-in Offline Fallback */}
@@ -482,7 +498,7 @@ export function SettingsView() {
             hasApiKey={false}
             defaultModel="rule-based"
             onSave={(cfg) => handleProviderSave('offline', cfg)}
-            onTest={() => handleProviderTest('offline')}
+            onTest={(cfg) => handleProviderTest('offline', cfg)}
           />
         </div>
       </section>

@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 import uuid
 from typing import Optional
 
@@ -7,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.logging_config import get_logger
 from app.database.models import AIProvider
 from app.database.session import get_db
@@ -17,8 +20,60 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
+def persist_env_variable(key: str, value: str) -> None:
+    """Persist an environment variable to process settings and .env files."""
+    os.environ[key] = value
+
+    attr_name = key.lower()
+    if hasattr(settings, attr_name):
+        try:
+            setattr(settings, attr_name, value)
+        except Exception:
+            pass
+
+    # Find candidate .env paths
+    env_paths = [
+        Path(".env"),
+        Path("../.env"),
+        Path("../../.env"),
+        Path(__file__).resolve().parent.parent.parent.parent.parent / ".env",
+        Path(__file__).resolve().parent.parent.parent / ".env",
+    ]
+
+    updated_files = set()
+    for env_path in env_paths:
+        try:
+            resolved = env_path.resolve()
+            if resolved in updated_files or not resolved.exists() or not resolved.is_file():
+                continue
+
+            content = resolved.read_text(encoding="utf-8")
+            lines = content.splitlines()
+            key_found = False
+            new_lines = []
+
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith(f"{key}=") or stripped.startswith(f"export {key}="):
+                    new_lines.append(f"{key}={value}")
+                    key_found = True
+                else:
+                    new_lines.append(line)
+
+            if not key_found:
+                new_lines.append(f"{key}={value}")
+
+            resolved.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+            updated_files.add(resolved)
+        except Exception as e:
+            logger.warning("Could not persist %s to %s: %s", key, env_path, e)
+
+
 class ProviderTestRequest(BaseModel):
     provider: str
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
 
 
 class ProviderConfigRequest(BaseModel):
@@ -60,7 +115,12 @@ async def list_providers(db: AsyncSession = Depends(get_db)) -> dict:
 @router.post("/test")
 async def test_provider(request: ProviderTestRequest) -> dict:
     """Test connection to a specific AI provider."""
-    result = await ai_router.test_provider(request.provider)
+    result = await ai_router.test_provider(
+        request.provider,
+        api_key=request.api_key,
+        model=request.model,
+        base_url=request.base_url,
+    )
     return result
 
 
@@ -78,15 +138,22 @@ async def configure_provider(
     # Update provider instance
     if request.api_key is not None and hasattr(provider_inst, "set_api_key"):
         provider_inst.set_api_key(request.api_key)
+        if name == "openai":
+            persist_env_variable("OPENAI_API_KEY", request.api_key)
+        elif name == "gemini":
+            persist_env_variable("GEMINI_API_KEY", request.api_key)
 
     if request.model is not None and hasattr(provider_inst, "set_model"):
         provider_inst.set_model(request.model)
 
     if request.base_url is not None and hasattr(provider_inst, "set_base_url"):
         provider_inst.set_base_url(request.base_url)
+        if name == "ollama":
+            persist_env_variable("OLLAMA_BASE_URL", request.base_url)
 
     if request.is_active:
         ai_router.set_active_provider(name)
+        persist_env_variable("ACTIVE_AI_PROVIDER", name)
         # Deactivate all in DB, activate this one
         await db.execute(update(AIProvider).values(is_active=False))
 

@@ -88,27 +88,53 @@ class AIRouter:
             })
         return result
 
-    async def test_provider(self, name: str) -> dict[str, Any]:
+    async def test_provider(
+        self,
+        name: str,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+    ) -> dict[str, Any]:
         provider = self.get_provider(name)
         if not provider:
-            return {"name": name, "available": False, "error": f"Unknown provider: {name}"}
+            return {
+                "name": name,
+                "success": False,
+                "available": False,
+                "error": f"Unknown provider: {name}",
+                "message": f"Unknown provider: {name}",
+            }
 
         start = time.time()
         try:
-            available = await provider.check_health()
+            if hasattr(provider, "test_connection"):
+                available, message = await provider.test_connection(
+                    api_key=api_key, model=model, base_url=base_url
+                )
+            else:
+                available = await provider.check_health()
+                message = "Connected successfully" if available else "Connection failed"
+
+            latency_ms = round((time.time() - start) * 1000, 2)
+            is_configured = bool(api_key and api_key.strip()) or provider.is_configured
+
+            return {
+                "name": name,
+                "success": available,
+                "available": available,
+                "latency_ms": latency_ms,
+                "is_configured": is_configured,
+                "message": message,
+            }
+        except Exception as e:
             latency_ms = round((time.time() - start) * 1000, 2)
             return {
                 "name": name,
-                "available": available,
-                "latency_ms": latency_ms,
-                "is_configured": provider.is_configured,
-            }
-        except Exception as e:
-            return {
-                "name": name,
+                "success": False,
                 "available": False,
-                "latency_ms": round((time.time() - start) * 1000, 2),
+                "latency_ms": latency_ms,
                 "error": str(e),
+                "message": str(e) or "Connection failed",
             }
 
 

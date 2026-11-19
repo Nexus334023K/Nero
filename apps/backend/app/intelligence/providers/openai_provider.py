@@ -49,18 +49,40 @@ class OpenAIProvider(BaseAIProvider):
     def set_model(self, model_name: str) -> None:
         self._model_name = model_name
 
-    async def check_health(self) -> bool:
-        if not self.is_configured:
-            return False
-        key = self.get_api_key()
+    async def test_connection(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+    ) -> tuple[bool, str]:
+        key = (api_key or self.get_api_key() or "").strip()
+        if not key or key.startswith("your_"):
+            return False, "API key is missing or not configured."
+
+        target_base = (base_url or OPENAI_BASE_URL).rstrip("/")
         headers = {"Authorization": f"Bearer {key}"}
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                res = await client.get(f"{OPENAI_BASE_URL}/models", headers=headers)
-                return res.status_code == 200
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(f"{target_base}/models", headers=headers)
+                if res.status_code == 200:
+                    return True, "Connected successfully"
+                elif res.status_code == 401:
+                    return False, "Invalid API key (401 Unauthorized)"
+                elif res.status_code == 429:
+                    return False, "OpenAI rate limit or quota exceeded (429)"
+                else:
+                    return False, f"OpenAI error (HTTP {res.status_code})"
+        except httpx.ConnectError:
+            return False, "Unable to reach OpenAI API (network unreachable)"
+        except httpx.TimeoutException:
+            return False, "Connection timed out"
         except Exception as e:
             logger.warning("OpenAI health check failed: %s", e)
-            return False
+            return False, f"Connection error: {str(e)}"
+
+    async def check_health(self, api_key: str | None = None) -> bool:
+        ok, _ = await self.test_connection(api_key=api_key)
+        return ok
 
     def _build_messages(
         self,
