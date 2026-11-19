@@ -37,8 +37,8 @@ function loadSavedVoiceSettings(): VoiceSettings {
         wakeWordEnabled: parsed.wakeWordEnabled ?? false,
         wakeWord: parsed.wakeWord || 'nero',
         fishApiKey: parsed.fishApiKey || '',
-        fishRefId: parsed.fishRefId || '',
-        fishModel: parsed.fishModel || 's2.1-pro',
+        fishRefId: parsed.fishRefId || '91c529fdef07457fb3483793af856009',
+        fishModel: parsed.fishModel || 's2.1-pro-free',
         allowFallback: parsed.allowFallback ?? false,
       };
     }
@@ -51,13 +51,13 @@ function loadSavedVoiceSettings(): VoiceSettings {
     vadSensitivity: 'medium',
     conversationalMode: false,
     ttsProvider: 'fish_audio',
-    activeVoiceId: '54f224d5500e482390f77977a41496d0',
+    activeVoiceId: '91c529fdef07457fb3483793af856009',
     speed: 1.0,
     wakeWordEnabled: false,
     wakeWord: 'nero',
     fishApiKey: '',
-    fishRefId: '',
-    fishModel: 's2.1-pro',
+    fishRefId: '91c529fdef07457fb3483793af856009',
+    fishModel: 's2.1-pro-free',
     allowFallback: false,
   };
 }

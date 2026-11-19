@@ -90,4 +90,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 await manager.send_json({"type": "echo", "data": msg}, websocket)
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
+    except Exception as e:
+        logger.debug("WebSocket disconnected with exception: %s", e)
+        await manager.disconnect(websocket)
 

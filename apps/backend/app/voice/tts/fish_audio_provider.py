@@ -31,7 +31,7 @@ class FishAudioTTSProvider(BaseTTSProvider):
     """
 
     API_URL = "https://api.fish.audio/v1/tts"
-    DEFAULT_MODEL = "s2.1-pro"
+    DEFAULT_MODEL = "s2.1-pro-free"
     DEFAULT_REFERENCE_ID = "54f224d5500e482390f77977a41496d0"
 
     def __init__(
@@ -122,6 +122,15 @@ class FishAudioTTSProvider(BaseTTSProvider):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 res = await client.post(self.API_URL, headers=headers, json=payload)
+
+                # Automatic retry on 402 if s2.1-pro requires paid credits and free tier is available
+                if res.status_code == 402 and self.model != "s2.1-pro-free":
+                    logger.info("[TTS] Model '%s' returned 402. Retrying with free model 's2.1-pro-free'...", self.model)
+                    retry_headers = dict(headers)
+                    retry_headers["model"] = "s2.1-pro-free"
+                    res = await client.post(self.API_URL, headers=retry_headers, json=payload)
+                    if res.status_code == 200:
+                        self.model = "s2.1-pro-free"
 
             logger.info("[TTS] Response status: %d", res.status_code)
             content_type = res.headers.get("content-type", "audio/mpeg")
@@ -215,6 +224,22 @@ class FishAudioTTSProvider(BaseTTSProvider):
             client = httpx.AsyncClient(timeout=30.0)
             async with client:
                 async with client.stream("POST", self.API_URL, headers=headers, json=payload) as response:
+                    # Automatic retry on 402 if s2.1-pro requires paid credits
+                    if response.status_code == 402 and self.model != "s2.1-pro-free":
+                        logger.info("[TTS] Streaming with '%s' returned 402. Retrying with 's2.1-pro-free'...", self.model)
+                        retry_headers = dict(headers)
+                        retry_headers["model"] = "s2.1-pro-free"
+                        async with client.stream("POST", self.API_URL, headers=retry_headers, json=payload) as retry_response:
+                            if retry_response.status_code == 200:
+                                self.model = "s2.1-pro-free"
+                                total_bytes = 0
+                                async for chunk in retry_response.aiter_bytes(chunk_size=4096):
+                                    total_bytes += len(chunk)
+                                    yield chunk
+                                logger.info("[TTS] Audio bytes received (stream retry): %d", total_bytes)
+                                logger.info("[TTS] Playback started")
+                                return
+
                     logger.info("[TTS] Response status: %d", response.status_code)
                     if response.status_code == 200:
                         total_bytes = 0

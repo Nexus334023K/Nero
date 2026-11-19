@@ -13,8 +13,11 @@ class WebSocketService {
   private shouldReconnect = true;
 
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
 
+    this.shouldReconnect = true;
     useAppStore.getState().setWsStatus('connecting');
 
     try {
@@ -39,7 +42,9 @@ class WebSocketService {
       this.ws.onclose = () => {
         useAppStore.getState().setWsStatus('disconnected');
         this.stopHeartbeat();
-        if (this.shouldReconnect) this.scheduleReconnect();
+        if (this.shouldReconnect) {
+          this.scheduleReconnect();
+        }
       };
 
       this.ws.onerror = () => {
@@ -47,7 +52,9 @@ class WebSocketService {
       };
     } catch {
       useAppStore.getState().setWsStatus('error');
-      this.scheduleReconnect();
+      if (this.shouldReconnect) {
+        this.scheduleReconnect();
+      }
     }
   }
 

@@ -150,74 +150,78 @@ def test_wakeword_detector():
 
 @pytest.mark.asyncio
 async def test_voice_api_endpoints_and_persistence():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        # 1. Test TTS endpoint with mock provider
-        tts_res = await client.post(
-            "/api/voice/tts",
-            json={"text": "Hello, testing NERO speech", "provider": "mock", "speed": 1.0},
-        )
-        assert tts_res.status_code == 200
-        assert len(tts_res.content) > 44
-        assert tts_res.headers["content-type"].startswith("audio/")
+    orig_settings = voice_manager.settings.model_copy()
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            # 1. Test TTS endpoint with mock provider
+            tts_res = await client.post(
+                "/api/voice/tts",
+                json={"text": "Hello, testing NERO speech", "provider": "mock", "speed": 1.0},
+            )
+            assert tts_res.status_code == 200
+            assert len(tts_res.content) > 44
+            assert tts_res.headers["content-type"].startswith("audio/")
 
-        # 2. Test STT endpoint with dummy WAV file
-        dummy_wav = b"RIFF" + b"\x00" * 50
-        files = {"file": ("test.wav", io.BytesIO(dummy_wav), "audio/wav")}
-        stt_res = await client.post("/api/voice/stt", files=files)
-        assert stt_res.status_code == 200
-        stt_data = stt_res.json()
-        assert "text" in stt_data
-        assert "confidence" in stt_data
+            # 2. Test STT endpoint with dummy WAV file
+            dummy_wav = b"RIFF" + b"\x00" * 50
+            files = {"file": ("test.wav", io.BytesIO(dummy_wav), "audio/wav")}
+            stt_res = await client.post("/api/voice/stt", files=files)
+            assert stt_res.status_code == 200
+            stt_data = stt_res.json()
+            assert "text" in stt_data
+            assert "confidence" in stt_data
 
-        # 3. Test Voices list endpoint (verify Fish Audio is included)
-        voices_res = await client.get("/api/voice/voices")
-        assert voices_res.status_code == 200
-        voices = voices_res.json()["voices"]
-        assert any(v["provider"] == "fish_audio" for v in voices)
-        assert any(v["provider"] == "piper" for v in voices)
+            # 3. Test Voices list endpoint (verify Fish Audio is included)
+            voices_res = await client.get("/api/voice/voices")
+            assert voices_res.status_code == 200
+            voices = voices_res.json()["voices"]
+            assert any(v["provider"] == "fish_audio" for v in voices)
+            assert any(v["provider"] == "piper" for v in voices)
 
-        # 4. Test Voice Settings GET & POST (and persistence)
-        update_res = await client.post(
-            "/api/voice/settings",
-            json={
-                "tts_provider": "fish_audio",
-                "stt_provider": "whisper",
-                "wake_word_enabled": True,
-                "wake_word": "nero",
-                "fish_audio_api_key": "fish_key_persistent_xyz",
-                "fish_audio_reference_id": "custom_voice_persistent_789",
-                "fish_audio_model": "s2.1-pro",
-                "speed": 1.1,
-                "allow_fallback": False,
-            },
-        )
-        assert update_res.status_code == 200
-        updated_data = update_res.json()
-        assert updated_data["tts_provider"] == "fish_audio"
-        assert updated_data["fish_audio_api_key"] == "fish_key_persistent_xyz"
-        assert updated_data["fish_audio_reference_id"] == "custom_voice_persistent_789"
-        assert updated_data["allow_fallback"] is False
+            # 4. Test Voice Settings GET & POST (and persistence)
+            update_res = await client.post(
+                "/api/voice/settings",
+                json={
+                    "tts_provider": "fish_audio",
+                    "stt_provider": "whisper",
+                    "wake_word_enabled": True,
+                    "wake_word": "nero",
+                    "fish_audio_api_key": "fish_key_persistent_xyz",
+                    "fish_audio_reference_id": "custom_voice_persistent_789",
+                    "fish_audio_model": "s2.1-pro",
+                    "speed": 1.1,
+                    "allow_fallback": False,
+                },
+            )
+            assert update_res.status_code == 200
+            updated_data = update_res.json()
+            assert updated_data["tts_provider"] == "fish_audio"
+            assert updated_data["fish_audio_api_key"] == "fish_key_persistent_xyz"
+            assert updated_data["fish_audio_reference_id"] == "custom_voice_persistent_789"
+            assert updated_data["allow_fallback"] is False
 
-        # Verify persistent reload
-        assert voice_manager.settings.fish_audio_api_key == "fish_key_persistent_xyz"
-        assert voice_manager.settings.fish_audio_reference_id == "custom_voice_persistent_789"
+            # Verify persistent reload
+            assert voice_manager.settings.fish_audio_api_key == "fish_key_persistent_xyz"
+            assert voice_manager.settings.fish_audio_reference_id == "custom_voice_persistent_789"
 
-        # 5. Test Voice Test endpoint
-        test_res = await client.post(
-            "/api/voice/test",
-            json={"provider": "mock", "text": "Testing voice synthesis."},
-        )
-        assert test_res.status_code == 200
-        test_json = test_res.json()
-        assert test_json["success"] is True
-        assert test_json["audio_size_bytes"] > 0
+            # 5. Test Voice Test endpoint
+            test_res = await client.post(
+                "/api/voice/test",
+                json={"provider": "mock", "text": "Testing voice synthesis."},
+            )
+            assert test_res.status_code == 200
+            test_json = test_res.json()
+            assert test_json["success"] is True
+            assert test_json["audio_size_bytes"] > 0
 
-        # 6. Test Wakeword check endpoint
-        wake_res = await client.post(
-            "/api/voice/wakeword/check",
-            json={"text": "Hey Nero play some music"},
-        )
-        assert wake_res.status_code == 200
-        assert wake_res.json()["detected"] is True
+            # 6. Test Wakeword check endpoint
+            wake_res = await client.post(
+                "/api/voice/wakeword/check",
+                json={"text": "Hey Nero play some music"},
+            )
+            assert wake_res.status_code == 200
+            assert wake_res.json()["detected"] is True
+    finally:
+        voice_manager.update_settings(orig_settings)

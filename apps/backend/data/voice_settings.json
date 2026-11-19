@@ -3,12 +3,12 @@
   "stt_provider": "whisper",
   "wake_word_enabled": true,
   "wake_word": "nero",
-  "fish_audio_api_key": "fish_key_persistent_xyz",
-  "fish_audio_reference_id": "custom_voice_persistent_789",
+  "fish_audio_api_key": "sk-fish-6Wkp5jsubF3qGUuJ1soT3O9hcJeRIJpkfb1Bfx9in0g",
+  "fish_audio_reference_id": "91c529fdef07457fb3483793af856009",
   "fish_audio_model": "s2.1-pro",
-  "elevenlabs_api_key": null,
-  "elevenlabs_voice_id": null,
+  "elevenlabs_api_key": "sk_baa5530815372594f4349d7ccacdff9a55baef63d4587ad4",
+  "elevenlabs_voice_id": "",
   "piper_voice": "en_US-lessac-medium",
-  "speed": 1.1,
+  "speed": 1.0,
   "allow_fallback": false
 }

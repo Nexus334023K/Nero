@@ -29,7 +29,9 @@ function NavigationSync() {
 }
 
 export function App() {
-  const { setBackendStatus, setBackendVersion, setLastHealthCheck } = useAppStore();
+  const setBackendStatus = useAppStore((s) => s.setBackendStatus);
+  const setBackendVersion = useAppStore((s) => s.setBackendVersion);
+  const setLastHealthCheck = useAppStore((s) => s.setLastHealthCheck);
 
   useEffect(() => {
     // 1. Initialize WebSocket connection
@@ -74,7 +76,7 @@ export function App() {
       clearInterval(interval);
       wsService.disconnect();
     };
-  }, [setBackendStatus, setBackendVersion, setLastHealthCheck]);
+  }, []);
 
   return (
     <HashRouter>

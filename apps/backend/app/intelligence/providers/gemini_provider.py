@@ -18,7 +18,7 @@ class GeminiProvider(BaseAIProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model_name: str = "gemini-flash-lite-latest",
+        model_name: str = "gemini-flash-latest",
     ) -> None:
         self._api_key = api_key if api_key is not None else (settings.gemini_api_key or "")
         self._model_name = self._normalize_model(model_name)
@@ -122,19 +122,21 @@ class GeminiProvider(BaseAIProvider):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(url, json=payload)
-                if response.status_code != 200:
-                    logger.error("Gemini API error %d: %s", response.status_code, response.text)
-                    return f"[Gemini Error {response.status_code}] Unable to complete request."
-                data = response.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "")
-                return ""
+                if response.status_code == 200:
+                    data = response.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "")
+                    return ""
+                logger.error("Gemini API error %d: %s", response.status_code, response.text)
+                from app.intelligence.providers.offline_provider import OfflineProvider
+                return await OfflineProvider().generate(prompt, history=history, system_prompt=system_prompt)
         except Exception as e:
-            logger.error("Gemini request exception: %s", e)
-            return f"[Gemini Fallback] Connection failed: {e}. Falling back to local offline mode."
+            logger.error("Gemini request exception: %s. Using OfflineProvider companion fallback.", e)
+            from app.intelligence.providers.offline_provider import OfflineProvider
+            return await OfflineProvider().generate(prompt, history=history, system_prompt=system_prompt)
 
     async def generate_stream(
         self,
@@ -158,10 +160,13 @@ class GeminiProvider(BaseAIProvider):
         payload = self._build_payload(prompt, history, system_prompt)
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=45.0) as client:
                 async with client.stream("POST", url, json=payload) as response:
                     if response.status_code != 200:
-                        yield f"[Gemini Error {response.status_code}]"
+                        logger.error("Gemini stream error %d, using offline provider fallback.", response.status_code)
+                        from app.intelligence.providers.offline_provider import OfflineProvider
+                        async for chunk in OfflineProvider().generate_stream(prompt, history=history, system_prompt=system_prompt):
+                            yield chunk
                         return
 
                     async for line in response.aiter_lines():
@@ -180,5 +185,7 @@ class GeminiProvider(BaseAIProvider):
                             except Exception:
                                 continue
         except Exception as e:
-            logger.error("Gemini streaming exception: %s", e)
-            yield f"[Gemini Stream Error: {e}]"
+            logger.error("Gemini streaming exception: %s. Using offline provider fallback.", e)
+            from app.intelligence.providers.offline_provider import OfflineProvider
+            async for chunk in OfflineProvider().generate_stream(prompt, history=history, system_prompt=system_prompt):
+                yield chunk
