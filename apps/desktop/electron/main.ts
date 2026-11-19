@@ -2,6 +2,15 @@ import { app, BrowserWindow, ipcMain, shell, screen } from 'electron';
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 
+// Guard against unhandled exceptions popping up modal crash dialogs
+process.on('uncaughtException', (error) => {
+  console.error('[ELECTRON] Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[ELECTRON] Unhandled Rejection:', reason);
+});
+
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
@@ -72,7 +81,7 @@ function getValidCompanionPosition(
 }
 
 function createCompanionWindow(): void {
-  if (companionWindow) {
+  if (companionWindow && !companionWindow.isDestroyed()) {
     if (companionWindow.isMinimized()) companionWindow.restore();
     companionWindow.show();
     companionWindow.focus();
@@ -110,12 +119,14 @@ function createCompanionWindow(): void {
   companionWindow.setMenuBarVisibility(false);
 
   companionWindow.once('ready-to-show', () => {
-    companionWindow?.show();
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.show();
+    }
   });
 
   // Track window movements to persist desktop position
   companionWindow.on('moved', () => {
-    if (!companionWindow) return;
+    if (!companionWindow || companionWindow.isDestroyed()) return;
     const [x, y] = companionWindow.getPosition();
     const currentCfg = loadCompanionConfig();
     saveCompanionConfig({ ...currentCfg, x, y });
@@ -157,13 +168,15 @@ function createWindow(): void {
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-    mainWindow?.focus();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
 
   // Safety fallback to ensure window is visible
   setTimeout(() => {
-    if (mainWindow && !mainWindow.isVisible()) {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       mainWindow.show();
       mainWindow.focus();
     }
@@ -192,53 +205,81 @@ function createWindow(): void {
       void shell.openExternal(url);
     }
   });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
 
 // IPC Handlers for window controls
-ipcMain.on('window:minimize', () => mainWindow?.minimize());
-ipcMain.on('window:maximize', () => {
-  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
-  else mainWindow?.maximize();
+ipcMain.on('window:minimize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.minimize();
+  }
 });
-ipcMain.on('window:close', () => mainWindow?.close());
+ipcMain.on('window:maximize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  }
+});
+ipcMain.on('window:close', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
+});
 
 // IPC Handlers for companion window
 ipcMain.on('companion:toggle', () => {
-  if (companionWindow && companionWindow.isVisible()) {
+  if (companionWindow && !companionWindow.isDestroyed() && companionWindow.isVisible()) {
     companionWindow.hide();
   } else {
     createCompanionWindow();
   }
 });
 ipcMain.on('companion:close', () => {
-  if (companionWindow) {
+  if (companionWindow && !companionWindow.isDestroyed()) {
     companionWindow.hide();
   }
 });
 ipcMain.on('companion:openMainWindow', (_event, route?: string) => {
   const targetRoute = route || '/chat';
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send('navigation:go', targetRoute);
+    if (!mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('navigation:go', targetRoute);
+    }
   } else {
     createWindow();
+    mainWindow?.once('ready-to-show', () => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('navigation:go', targetRoute);
+      }
+    });
   }
 });
 ipcMain.on('companion:openSettings', () => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send('navigation:go', '/settings');
+    if (!mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('navigation:go', '/settings');
+    }
   } else {
     createWindow();
+    mainWindow?.once('ready-to-show', () => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('navigation:go', '/settings');
+      }
+    });
   }
 });
 ipcMain.on('companion:setAlwaysOnTop', (_event, flag: boolean) => {
   const boolFlag = Boolean(flag);
-  if (companionWindow) {
+  if (companionWindow && !companionWindow.isDestroyed()) {
     companionWindow.setAlwaysOnTop(boolFlag);
   }
   const currentCfg = loadCompanionConfig();
@@ -257,10 +298,20 @@ ipcMain.on('companion:move', (_event, x: number, y: number) => {
 
 // IPC: Synchronize companion state between main and companion windows
 ipcMain.on('companion:syncState', (_event, message: unknown) => {
-  if (companionWindow && !companionWindow.isDestroyed() && companionWindow.webContents !== _event.sender) {
+  if (
+    companionWindow &&
+    !companionWindow.isDestroyed() &&
+    !companionWindow.webContents.isDestroyed() &&
+    companionWindow.webContents !== _event.sender
+  ) {
     companionWindow.webContents.send('companion:syncState', message);
   }
-  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents !== _event.sender) {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    !mainWindow.webContents.isDestroyed() &&
+    mainWindow.webContents !== _event.sender
+  ) {
     mainWindow.webContents.send('companion:syncState', message);
   }
 });
@@ -280,9 +331,11 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+    } else {
+      createWindow();
     }
   });
 
