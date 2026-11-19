@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AIState, ConnectionStatus, PersonalityMode } from '../types';
+import { crossWindowSync } from '../services/crossWindowSync';
 
 interface AppStore {
   // AI state
@@ -31,7 +32,10 @@ interface AppStore {
 
 export const useAppStore = create<AppStore>((set) => ({
   aiState: 'idle',
-  setAIState: (aiState) => set({ aiState }),
+  setAIState: (aiState) => {
+    set({ aiState });
+    crossWindowSync.broadcast({ type: 'AI_STATE', payload: aiState });
+  },
 
   backendStatus: 'connecting',
   setBackendStatus: (backendStatus) => set({ backendStatus }),

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AnimationState, BubbleMessage, CompanionMood, PetStats } from '../features/companion/types';
 import { CLICK_REACTIONS, PET_REACTIONS } from '../features/companion/data/personality';
+import { crossWindowSync } from '../services/crossWindowSync';
 
 const STORAGE_KEY = 'nero_companion_stats_v1';
 
@@ -40,19 +41,19 @@ function saveStats(stats: PetStats) {
 interface CompanionStore {
   // Stats
   stats: PetStats;
-  setMood: (mood: CompanionMood) => void;
+  setMood: (mood: CompanionMood, broadcast?: boolean) => void;
   recordInteraction: (type?: 'click' | 'chat' | 'pet' | 'voice') => void;
   
   // Animation state (can be overridden temporarily)
   activeAnimation: AnimationState;
   overrideAnimation: AnimationState | null;
   setAnimation: (anim: AnimationState) => void;
-  playOneShot: (anim: AnimationState, durationMs?: number) => void;
+  playOneShot: (anim: AnimationState, durationMs?: number, broadcast?: boolean) => void;
   
   // Speech bubble
   bubble: BubbleMessage | null;
-  triggerBubble: (text: string, duration?: number, type?: BubbleMessage['type']) => void;
-  dismissBubble: () => void;
+  triggerBubble: (text: string, duration?: number, type?: BubbleMessage['type'], broadcast?: boolean) => void;
+  dismissBubble: (broadcast?: boolean) => void;
   
   // Interactions
   triggerClickReaction: () => void;
@@ -70,10 +71,13 @@ interface CompanionStore {
 
 export const useCompanionStore = create<CompanionStore>((set, get) => ({
   stats: loadSavedStats(),
-  setMood: (mood) => {
+  setMood: (mood, broadcast = true) => {
     const newStats: PetStats = { ...get().stats, mood, lastInteraction: new Date().toISOString() };
     saveStats(newStats);
     set({ stats: newStats });
+    if (broadcast) {
+      crossWindowSync.broadcast({ type: 'SET_MOOD', payload: mood });
+    }
   },
   recordInteraction: (type = 'click') => {
     const prev = get().stats;
@@ -92,8 +96,11 @@ export const useCompanionStore = create<CompanionStore>((set, get) => ({
   activeAnimation: 'idle',
   overrideAnimation: null,
   setAnimation: (activeAnimation) => set({ activeAnimation }),
-  playOneShot: (anim, durationMs = 1200) => {
+  playOneShot: (anim, durationMs = 1200, broadcast = true) => {
     set({ overrideAnimation: anim });
+    if (broadcast) {
+      crossWindowSync.broadcast({ type: 'PLAY_ONE_SHOT', payload: { anim, durationMs } });
+    }
     setTimeout(() => {
       if (get().overrideAnimation === anim) {
         set({ overrideAnimation: null });
@@ -102,11 +109,19 @@ export const useCompanionStore = create<CompanionStore>((set, get) => ({
   },
 
   bubble: null,
-  triggerBubble: (text, duration = 4000, type = 'reaction') => {
+  triggerBubble: (text, duration = 4000, type = 'reaction', broadcast = true) => {
     const id = Math.random().toString(36).substring(7);
     set({ bubble: { id, text, duration, type } });
+    if (broadcast) {
+      crossWindowSync.broadcast({ type: 'TRIGGER_BUBBLE', payload: { text, duration, bubbleType: type } });
+    }
   },
-  dismissBubble: () => set({ bubble: null }),
+  dismissBubble: (broadcast = true) => {
+    set({ bubble: null });
+    if (broadcast) {
+      crossWindowSync.broadcast({ type: 'DISMISS_BUBBLE' });
+    }
+  },
 
   triggerClickReaction: () => {
     get().recordInteraction('click');

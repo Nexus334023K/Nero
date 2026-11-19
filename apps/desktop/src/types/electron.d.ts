@@ -12,6 +12,8 @@ interface ElectronAPI {
     setAlwaysOnTop: (flag: boolean) => void;
     setIgnoreMouseEvents: (ignore: boolean, forward?: boolean) => void;
     move: (x: number, y: number) => void;
+    syncState?: (data: unknown) => void;
+    onSyncState?: (callback: (data: any) => void) => () => void;
   };
   onNavigation?: (callback: (route: string) => void) => () => void;
   app: {

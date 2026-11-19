@@ -18,6 +18,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setIgnoreMouseEvents: (ignore: boolean, forward = true) =>
       ipcRenderer.send('companion:setIgnoreMouseEvents', ignore, { forward }),
     move: (x: number, y: number) => ipcRenderer.send('companion:move', x, y),
+    syncState: (data: unknown) => ipcRenderer.send('companion:syncState', data),
+    onSyncState: (callback: (data: any) => void) => {
+      const handler = (_event: unknown, data: any) => callback(data);
+      ipcRenderer.on('companion:syncState', handler);
+      return () => {
+        ipcRenderer.removeListener('companion:syncState', handler);
+      };
+    },
   },
   // Navigation listener for main window
   onNavigation: (callback: (route: string) => void) => {

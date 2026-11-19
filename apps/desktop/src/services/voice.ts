@@ -2,6 +2,7 @@ import { api, ApiError } from './api';
 import { useAppStore } from '../stores/appStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import { useAudioStore } from '../stores/audioStore';
+import { useCompanionStore } from '../stores/companionStore';
 import { audioDeviceService } from './audioDeviceService';
 import { VoiceActivityDetector } from './vad';
 
@@ -292,6 +293,13 @@ class VoiceService {
       voiceStore.setIsSpeaking(true);
       voiceStore.setLastSpokenText(text);
       appStore.setAIState('speaking');
+      // Trigger character speech bubble on floating companion
+      const bubbleDuration = Math.max(3500, Math.min(12000, text.length * 75));
+      useCompanionStore.getState().triggerBubble(
+        text.length > 90 ? text.slice(0, 87) + '...' : text,
+        bubbleDuration,
+        'chat'
+      );
 
       const targetProvider = provider || voiceStore.ttsProvider;
       const targetVoice = voiceId || voiceStore.activeVoiceId;
@@ -315,6 +323,7 @@ class VoiceService {
       audio.onended = () => {
         voiceStore.setIsSpeaking(false);
         appStore.setAIState('idle');
+        useCompanionStore.getState().dismissBubble();
         URL.revokeObjectURL(audioUrl);
         this.currentAudio = null;
         onComplete?.();
@@ -326,6 +335,7 @@ class VoiceService {
         voiceStore.setTtsError(mediaErr);
         voiceStore.setIsSpeaking(false);
         appStore.setAIState('idle');
+        useCompanionStore.getState().dismissBubble();
         URL.revokeObjectURL(audioUrl);
         this.currentAudio = null;
         onComplete?.();
@@ -340,6 +350,7 @@ class VoiceService {
       voiceStore.setTtsError(errMessage);
       voiceStore.setIsSpeaking(false);
       appStore.setAIState('idle');
+      useCompanionStore.getState().dismissBubble();
       onComplete?.();
       return false;
     }
@@ -352,6 +363,7 @@ class VoiceService {
     }
     useVoiceStore.getState().setIsSpeaking(false);
     useAppStore.getState().setAIState('idle');
+    useCompanionStore.getState().dismissBubble();
   }
 }
 

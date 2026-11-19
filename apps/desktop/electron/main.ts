@@ -255,6 +255,16 @@ ipcMain.on('companion:move', (_event, x: number, y: number) => {
   }
 });
 
+// IPC: Synchronize companion state between main and companion windows
+ipcMain.on('companion:syncState', (_event, message: unknown) => {
+  if (companionWindow && !companionWindow.isDestroyed() && companionWindow.webContents !== _event.sender) {
+    companionWindow.webContents.send('companion:syncState', message);
+  }
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents !== _event.sender) {
+    mainWindow.webContents.send('companion:syncState', message);
+  }
+});
+
 // IPC: get app info
 ipcMain.handle('app:getInfo', () => ({
   version: app.getVersion(),

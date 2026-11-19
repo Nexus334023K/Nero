@@ -6,6 +6,128 @@ import { SpriteAnimator } from './components/SpriteAnimator';
 import { CompanionContextMenu } from './components/CompanionContextMenu';
 import type { AnimationState } from './types';
 
+const MOTION_PROFILES: Record<
+  AnimationState,
+  {
+    animate: any;
+    transition: any;
+  }
+> = {
+  talking: {
+    animate: {
+      y: [0, -5, -1, -6, -2, 0],
+      rotate: [0, -1.8, 1.4, -1.2, 1, 0],
+      scale: [1, 1.035, 0.99, 1.03, 1],
+      filter: [
+        'drop-shadow(0 4px 14px rgba(0, 212, 255, 0.35))',
+        'drop-shadow(0 4px 22px rgba(0, 212, 255, 0.7))',
+        'drop-shadow(0 4px 14px rgba(0, 212, 255, 0.35))',
+      ],
+    },
+    transition: {
+      y: { duration: 0.85, repeat: Infinity, ease: 'easeInOut' },
+      rotate: { duration: 0.85, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 0.85, repeat: Infinity, ease: 'easeInOut' },
+      filter: { duration: 0.85, repeat: Infinity, ease: 'easeInOut' },
+    },
+  },
+  listening: {
+    animate: {
+      y: [0, -3, 0],
+      scale: [1, 1.025, 1],
+      filter: [
+        'drop-shadow(0 4px 14px rgba(0, 212, 255, 0.4))',
+        'drop-shadow(0 4px 24px rgba(0, 212, 255, 0.8))',
+        'drop-shadow(0 4px 14px rgba(0, 212, 255, 0.4))',
+      ],
+    },
+    transition: {
+      y: { duration: 1.4, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 1.4, repeat: Infinity, ease: 'easeInOut' },
+      filter: { duration: 1.4, repeat: Infinity, ease: 'easeInOut' },
+    },
+  },
+  thinking: {
+    animate: {
+      y: [0, -4, 0],
+      rotate: [0, 3, 1.5, 3.5, 0],
+      filter: [
+        'drop-shadow(0 4px 12px rgba(0, 180, 255, 0.3))',
+        'drop-shadow(0 4px 20px rgba(0, 180, 255, 0.6))',
+        'drop-shadow(0 4px 12px rgba(0, 180, 255, 0.3))',
+      ],
+    },
+    transition: {
+      y: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' },
+      rotate: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' },
+      filter: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' },
+    },
+  },
+  happy: {
+    animate: {
+      y: [0, -12, 0, -8, 0],
+      scale: [1, 1.06, 1, 1.03, 1],
+      rotate: [0, -2, 2, 0],
+      filter: 'drop-shadow(0 4px 22px rgba(0, 212, 255, 0.6))',
+    },
+    transition: {
+      y: { duration: 1.0, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 1.0, repeat: Infinity, ease: 'easeInOut' },
+      rotate: { duration: 1.0, repeat: Infinity, ease: 'easeInOut' },
+    },
+  },
+  surprised: {
+    animate: {
+      y: [0, -10, 2, -2, 0],
+      scale: [1, 1.08, 0.96, 1],
+      rotate: [0, -3, 3, 0],
+      filter: 'drop-shadow(0 4px 20px rgba(239, 68, 68, 0.5))',
+    },
+    transition: {
+      duration: 0.6,
+      repeat: Infinity,
+      repeatDelay: 1.5,
+      ease: 'easeOut',
+    },
+  },
+  clicked: {
+    animate: {
+      scale: [1, 0.88, 1.08, 0.98, 1],
+      y: [0, 6, -7, 0],
+      rotate: [0, -5, 4, 0],
+      filter: 'drop-shadow(0 4px 20px rgba(0, 212, 255, 0.7))',
+    },
+    transition: {
+      duration: 0.35,
+      ease: 'easeOut',
+    },
+  },
+  sleeping: {
+    animate: {
+      y: [0, 3, 0],
+      scale: [1, 1.015, 1],
+      filter: 'drop-shadow(0 4px 10px rgba(100, 116, 139, 0.3))',
+    },
+    transition: {
+      y: { duration: 4.0, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 4.0, repeat: Infinity, ease: 'easeInOut' },
+    },
+  },
+  idle: {
+    animate: {
+      y: [0, -5, 0],
+      rotate: [0, -0.8, 0.8, 0],
+      scale: [1, 1.01, 1],
+      filter: 'drop-shadow(0 4px 14px rgba(0, 212, 255, 0.28))',
+    },
+    transition: {
+      y: { duration: 3.0, repeat: Infinity, ease: 'easeInOut' },
+      rotate: { duration: 3.0, repeat: Infinity, ease: 'easeInOut' },
+      scale: { duration: 3.0, repeat: Infinity, ease: 'easeInOut' },
+    },
+  },
+};
+
 export const FloatingCompanion: React.FC = () => {
   const { aiState } = useAppStore();
   const {
@@ -212,18 +334,8 @@ export const FloatingCompanion: React.FC = () => {
           height: 220,
         }}
         title="NERO — Drag to move, click to poke, double-click for chat, right-click for menu"
-        animate={{
-          y: currentAnimation === 'sleeping' ? [0, 1, 0] : [0, -3.5, 0],
-          scale: currentAnimation === 'clicked' ? [1, 0.94, 1.05, 1] : 1,
-        }}
-        transition={{
-          y: {
-            duration: currentAnimation === 'sleeping' ? 4 : 3,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          },
-          scale: { duration: 0.3 },
-        }}
+        animate={MOTION_PROFILES[currentAnimation]?.animate || MOTION_PROFILES.idle.animate}
+        transition={MOTION_PROFILES[currentAnimation]?.transition || MOTION_PROFILES.idle.transition}
       >
         <SpriteAnimator state={currentAnimation} size={220} />
       </motion.div>
