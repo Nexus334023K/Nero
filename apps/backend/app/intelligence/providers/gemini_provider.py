@@ -122,6 +122,11 @@ class GeminiProvider(BaseAIProvider):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(url, json=payload)
+                if response.status_code == 503 and model != "gemini-flash-lite-latest":
+                    logger.info("Gemini model '%s' returned 503 high demand. Retrying with 'gemini-flash-lite-latest'...", model)
+                    retry_url = f"{GEMINI_BASE_URL}/models/gemini-flash-lite-latest:generateContent?key={key}"
+                    response = await client.post(retry_url, json=payload)
+
                 if response.status_code == 200:
                     data = response.json()
                     candidates = data.get("candidates", [])
@@ -162,6 +167,27 @@ class GeminiProvider(BaseAIProvider):
         try:
             async with httpx.AsyncClient(timeout=45.0) as client:
                 async with client.stream("POST", url, json=payload) as response:
+                    if response.status_code == 503 and model != "gemini-flash-lite-latest":
+                        logger.info("Gemini stream 503 high demand on '%s'. Retrying stream with 'gemini-flash-lite-latest'...", model)
+                        retry_url = f"{GEMINI_BASE_URL}/models/gemini-flash-lite-latest:streamGenerateContent?alt=sse&key={key}"
+                        async with client.stream("POST", retry_url, json=payload) as retry_res:
+                            if retry_res.status_code == 200:
+                                async for line in retry_res.aiter_lines():
+                                    line = line.strip()
+                                    if line.startswith("data: "):
+                                        try:
+                                            chunk_data = json.loads(line[6:])
+                                            candidates = chunk_data.get("candidates", [])
+                                            if candidates:
+                                                parts = candidates[0].get("content", {}).get("parts", [])
+                                                for p in parts:
+                                                    text = p.get("text", "")
+                                                    if text:
+                                                        yield text
+                                        except Exception:
+                                            continue
+                                return
+
                     if response.status_code != 200:
                         logger.error("Gemini stream error %d, using offline provider fallback.", response.status_code)
                         from app.intelligence.providers.offline_provider import OfflineProvider

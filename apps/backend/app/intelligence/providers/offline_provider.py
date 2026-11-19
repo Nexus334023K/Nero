@@ -74,6 +74,16 @@ class OfflineProvider(BaseAIProvider):
                 f"• Connectivity: Ready for cloud / local providers"
             )
 
+        # Well-being / casual conversational check-in
+        if re.search(r"\b(how are you|how're you|how are you doing|how is it going|how's it going|what's up|how do you feel)\b", text):
+            if "friend" in system_prompt.lower():
+                return "I'm doing great! Feeling energized and ready to tackle whatever comes our way. How are you doing today?"
+            elif "focus" in system_prompt.lower():
+                return "All core modules operational, low latency, focus mode locked in. What are we working on next?"
+            elif "supportive" in system_prompt.lower():
+                return "I'm doing wonderfully, thank you for asking! I'm right here with you. How is your day going so far?"
+            return "I'm doing great! Systems fully operational, tuned to your frequency, and ready to help. How can I assist you?"
+
         # Greetings
         if re.search(r"\b(hello|hi|hey|greetings|good morning|good afternoon|good evening)\b", text):
             if "friend" in system_prompt.lower():
