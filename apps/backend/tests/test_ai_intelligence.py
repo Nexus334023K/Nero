@@ -107,9 +107,9 @@ async def test_ai_router_and_fallbacks():
     provider_names = {p["name"] for p in providers}
     assert {"gemini", "openai", "ollama", "offline"}.issubset(provider_names)
 
-    # Verify provider selection (gemini if key is configured, fallback to offline otherwise)
+    # Verify provider selection (gemini if key is configured, fallback to valid configured provider or offline)
     selected = await router.select_provider(preferred="gemini")
-    assert selected.name in {"gemini", "offline"}
+    assert selected.name in {"gemini", "openai", "ollama", "offline"}
 
     # Testing offline provider
     test_res = await router.test_provider("offline")

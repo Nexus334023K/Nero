@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging_config import get_logger
 from app.database.models import Conversation, Message, User
 from app.database.session import AsyncSessionLocal
+from app.engine.action_planner import AutonomousActionPlanner
 from app.engine.task_engine import task_engine
 from app.intelligence.personality.engine import personality_engine
 from app.intelligence.router import ai_router
@@ -175,6 +176,29 @@ class AIOrchestrator:
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
+        # Check for autonomous action plan (multi-step or real desktop operations)
+        action_plan = AutonomousActionPlanner.plan(request.message)
+        if action_plan:
+            plan_res = await AutonomousActionPlanner.execute_plan(action_plan)
+            response_text = plan_res["summary"]
+            assistant_msg_id = str(uuid.uuid4())
+            assistant_msg = Message(
+                id=assistant_msg_id,
+                conversation_id=conv_id,
+                role="assistant",
+                content=response_text,
+                model_used="nero:action-planner",
+            )
+            db.add(assistant_msg)
+            await db.commit()
+            return ChatResponse(
+                response=response_text,
+                conversation_id=conv_id,
+                message_id=assistant_msg_id,
+                model_used="nero:action-planner",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+
         # Check for tool intent
         tool_action_context = ""
         tool_intent = ToolIntentDetector.detect(request.message)
@@ -336,6 +360,47 @@ class AIOrchestrator:
 
             history = await self.get_conversation_history(init_db, conv_id, limit=8)
             mode = request.personality_mode or conversation.personality_mode
+
+            # Check for autonomous action plan
+            action_plan = AutonomousActionPlanner.plan(request.message)
+            if action_plan:
+                assistant_msg_id = str(uuid.uuid4())
+                start_payload = {
+                    "type": "start",
+                    "conversation_id": conv_id,
+                    "message_id": assistant_msg_id,
+                    "model_used": "nero:action-planner",
+                }
+                yield f"data: {json.dumps(start_payload)}\n\n"
+                init_msg = "On it! Initiating desktop automation plan...\n\n"
+                yield f"data: {json.dumps({'type': 'chunk', 'content': init_msg})}\n\n"
+
+                accumulated = [init_msg]
+
+                def progress_cb(step, cur, total):
+                    msg = f"⚙️ **Step {cur}/{total}**: {step.description}...\n"
+                    accumulated.append(msg)
+
+                plan_res = await AutonomousActionPlanner.execute_plan(action_plan, on_step_progress=progress_cb)
+                for chunk in accumulated[1:]:
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+
+                final_summary = f"\n{plan_res['summary']}"
+                yield f"data: {json.dumps({'type': 'chunk', 'content': final_summary})}\n\n"
+
+                full_text = "".join(accumulated) + final_summary
+                async with AsyncSessionLocal() as save_db:
+                    save_db.add(Message(
+                        id=assistant_msg_id,
+                        conversation_id=conv_id,
+                        role="assistant",
+                        content=full_text,
+                        model_used="nero:action-planner",
+                    ))
+                    await save_db.commit()
+
+                yield f"data: {json.dumps({'type': 'done', 'content': full_text})}\n\n"
+                return
 
             # Tool intent detection
             tool_action_context = ""

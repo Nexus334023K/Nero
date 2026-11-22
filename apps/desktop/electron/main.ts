@@ -211,109 +211,165 @@ function createWindow(): void {
   });
 }
 
+// Helper for safe window operations
+function safeWinOp(fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    // Window may have been closed or destroyed during asynchronous IPC dispatch
+    console.warn('[ELECTRON IPC] Handled safe window op exception:', err);
+  }
+}
+
 // IPC Handlers for window controls
 ipcMain.on('window:minimize', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
-  }
+  safeWinOp(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+    }
+  });
 });
+
 ipcMain.on('window:maximize', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMaximized()) mainWindow.unmaximize();
-    else mainWindow.maximize();
-  }
+  safeWinOp(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+    }
+  });
 });
+
 ipcMain.on('window:close', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.close();
-  }
+  safeWinOp(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.close();
+    }
+  });
 });
 
 // IPC Handlers for companion window
 ipcMain.on('companion:toggle', () => {
-  if (companionWindow && !companionWindow.isDestroyed() && companionWindow.isVisible()) {
-    companionWindow.hide();
-  } else {
-    createCompanionWindow();
-  }
-});
-ipcMain.on('companion:close', () => {
-  if (companionWindow && !companionWindow.isDestroyed()) {
-    companionWindow.hide();
-  }
-});
-ipcMain.on('companion:openMainWindow', (_event, route?: string) => {
-  const targetRoute = route || '/chat';
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
-    if (!mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('navigation:go', targetRoute);
+  safeWinOp(() => {
+    if (companionWindow && !companionWindow.isDestroyed() && companionWindow.isVisible()) {
+      companionWindow.hide();
+    } else {
+      createCompanionWindow();
     }
-  } else {
-    createWindow();
-    mainWindow?.once('ready-to-show', () => {
-      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+  });
+});
+
+ipcMain.on('companion:close', () => {
+  safeWinOp(() => {
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.hide();
+    }
+  });
+});
+
+ipcMain.on('companion:openMainWindow', (_event, route?: string) => {
+  safeWinOp(() => {
+    const targetRoute = route || '/chat';
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      if (!mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send('navigation:go', targetRoute);
       }
-    });
-  }
-});
-ipcMain.on('companion:openSettings', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
-    if (!mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('navigation:go', '/settings');
+    } else {
+      createWindow();
+      mainWindow?.once('ready-to-show', () => {
+        safeWinOp(() => {
+          if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.send('navigation:go', targetRoute);
+          }
+        });
+      });
     }
-  } else {
-    createWindow();
-    mainWindow?.once('ready-to-show', () => {
-      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+  });
+});
+
+ipcMain.on('companion:openSettings', () => {
+  safeWinOp(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      if (!mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send('navigation:go', '/settings');
       }
-    });
-  }
+    } else {
+      createWindow();
+      mainWindow?.once('ready-to-show', () => {
+        safeWinOp(() => {
+          if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.send('navigation:go', '/settings');
+          }
+        });
+      });
+    }
+  });
 });
+
 ipcMain.on('companion:setAlwaysOnTop', (_event, flag: boolean) => {
-  const boolFlag = Boolean(flag);
-  if (companionWindow && !companionWindow.isDestroyed()) {
-    companionWindow.setAlwaysOnTop(boolFlag);
-  }
-  const currentCfg = loadCompanionConfig();
-  saveCompanionConfig({ ...currentCfg, alwaysOnTop: boolFlag });
+  safeWinOp(() => {
+    const boolFlag = Boolean(flag);
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.setAlwaysOnTop(boolFlag);
+    }
+    const currentCfg = loadCompanionConfig();
+    saveCompanionConfig({ ...currentCfg, alwaysOnTop: boolFlag });
+  });
 });
+
 ipcMain.on('companion:setIgnoreMouseEvents', (_event, ignore: boolean, options?: { forward?: boolean }) => {
-  if (companionWindow && !companionWindow.isDestroyed()) {
-    companionWindow.setIgnoreMouseEvents(Boolean(ignore), { forward: options?.forward ?? true });
-  }
+  safeWinOp(() => {
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.setIgnoreMouseEvents(Boolean(ignore), { forward: options?.forward ?? true });
+    }
+  });
 });
+
 ipcMain.on('companion:move', (_event, x: number, y: number) => {
-  if (companionWindow && !companionWindow.isDestroyed()) {
-    companionWindow.setPosition(Math.round(x), Math.round(y));
-  }
+  safeWinOp(() => {
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.setPosition(Math.round(x), Math.round(y));
+    }
+  });
 });
 
 // IPC: Synchronize companion state between main and companion windows
 ipcMain.on('companion:syncState', (_event, message: unknown) => {
-  if (
-    companionWindow &&
-    !companionWindow.isDestroyed() &&
-    !companionWindow.webContents.isDestroyed() &&
-    companionWindow.webContents !== _event.sender
-  ) {
-    companionWindow.webContents.send('companion:syncState', message);
-  }
-  if (
-    mainWindow &&
-    !mainWindow.isDestroyed() &&
-    !mainWindow.webContents.isDestroyed() &&
-    mainWindow.webContents !== _event.sender
-  ) {
-    mainWindow.webContents.send('companion:syncState', message);
-  }
+  safeWinOp(() => {
+    let senderId = -1;
+    try {
+      if (_event.sender && !_event.sender.isDestroyed()) {
+        senderId = _event.sender.id;
+      }
+    } catch {
+      // sender already destroyed
+    }
+
+    if (
+      companionWindow &&
+      !companionWindow.isDestroyed() &&
+      companionWindow.webContents &&
+      !companionWindow.webContents.isDestroyed() &&
+      companionWindow.webContents.id !== senderId
+    ) {
+      companionWindow.webContents.send('companion:syncState', message);
+    }
+
+    if (
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      mainWindow.webContents &&
+      !mainWindow.webContents.isDestroyed() &&
+      mainWindow.webContents.id !== senderId
+    ) {
+      mainWindow.webContents.send('companion:syncState', message);
+    }
+  });
 });
 
 // IPC: get app info

@@ -5,7 +5,6 @@ import httpx
 
 from app.core.logging_config import get_logger
 from app.tools.base import BaseTool, PermissionLevel, ToolResult
-from app.agents.security import URLSafetyGuard
 
 logger = get_logger(__name__)
 
@@ -69,6 +68,7 @@ class WebPageReaderTool(BaseTool):
         url = params["url"].strip()
 
         # SSRF and private-network protection
+        from app.agents.security import URLSafetyGuard
         is_safe, error_reason, _ = URLSafetyGuard.validate_url(url)
         if not is_safe:
             return ToolResult(

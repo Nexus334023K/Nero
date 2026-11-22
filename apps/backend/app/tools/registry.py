@@ -7,14 +7,19 @@ from app.core.logging_config import get_logger
 from app.database.models import ActivityLog
 from app.tools.base import BaseTool, PermissionLevel, ToolResult
 from app.tools.desktop.app_launcher import AppLauncherTool
+from app.tools.desktop.computer_control import ComputerControlTool
 from app.tools.desktop.file_manager import FileManagerTool
+from app.tools.desktop.system_control import SystemControlTool
 from app.tools.desktop.system_monitor import SystemMonitorTool
 from app.tools.desktop.volume_control import VolumeControlTool
 from app.tools.developer.git_analyzer import GitAnalyzerTool
 from app.tools.developer.project_analyzer import ProjectStructureTool
+from app.tools.productivity.office_automation import OfficeAutomationTool
 from app.tools.productivity.task_manager import TaskManagerTool
+from app.tools.research.browser_automation import BrowserAutomationTool
 from app.tools.research.web_reader import WebPageReaderTool
 from app.tools.research.web_search import WebSearchTool
+from app.tools.creative.creative_tools import CreativeSuiteTool
 from app.tools.permissions import permission_manager
 
 logger = get_logger(__name__)
@@ -38,6 +43,11 @@ class ToolRegistry:
         self.register(GitAnalyzerTool())
         self.register(ProjectStructureTool())
         self.register(TaskManagerTool())
+        self.register(ComputerControlTool())
+        self.register(SystemControlTool())
+        self.register(OfficeAutomationTool())
+        self.register(BrowserAutomationTool())
+        self.register(CreativeSuiteTool())
         logger.info("Registered %d automation tools", len(self._tools))
 
     def register(self, tool: BaseTool) -> None:

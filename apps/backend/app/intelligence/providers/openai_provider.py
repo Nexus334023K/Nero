@@ -20,7 +20,7 @@ class OpenAIProvider(BaseAIProvider):
         api_key: str | None = None,
         model_name: str = "gpt-4o",
     ) -> None:
-        self._api_key = api_key or settings.openai_api_key or ""
+        self._api_key = api_key
         self._model_name = model_name
 
     @property
@@ -41,7 +41,7 @@ class OpenAIProvider(BaseAIProvider):
         return bool(key and key.strip() and not key.startswith("your_"))
 
     def get_api_key(self) -> str:
-        return self._api_key or settings.openai_api_key or ""
+        return self._api_key if self._api_key is not None else (settings.openai_api_key or "")
 
     def set_api_key(self, api_key: str) -> None:
         self._api_key = api_key

@@ -127,4 +127,51 @@ class ToolIntentDetector:
         if re.search(r"\b(show|list|what\s+are)\s+(?:my\s+)?tasks\b", text):
             return "task_manager", {"action": "list_tasks", "status_filter": "pending"}
 
+        # 8. Real Desktop & Computer Control
+        type_match = re.search(r"^(?:type|write|input)\s+[\"']?(.+?)[\"']?$", text)
+        if type_match and not any(w in text for w in ["code", "function", "script", "document", "story", "poem"]):
+            return "computer_control", {"action": "type_text", "text": type_match.group(1).strip("\"'")}
+
+        press_match = re.search(r"^(?:press|hit)\s+(?:the\s+)?(enter|tab|esc|escape|space|backspace|delete|up|down|left|right)\s*(?:key)?$", text)
+        if press_match:
+            return "computer_control", {"action": "press_key", "key": press_match.group(1)}
+
+        focus_match = re.search(r"\b(?:focus|switch\s+to|bring\s+to\s+front)\s+(?:the\s+)?([a-zA-Z0-9_\-\s]+)\s*(?:window|app)?\b", text)
+        if focus_match and not any(w in text for w in ["mode", "tab", "git", "task"]):
+            target_win = focus_match.group(1).strip()
+            return "computer_control", {"action": "focus_window", "window_title": target_win}
+
+        if re.search(r"\b(find\s+windows|list\s+(?:open\s+)?windows|show\s+(?:all\s+)?windows)\b", text):
+            return "computer_control", {"action": "find_windows"}
+
+        if re.search(r"\b(what('s| is)\s+(?:my\s+)?active\s+window|active\s+app)\b", text):
+            return "computer_control", {"action": "get_active_window"}
+
+        # 9. Screenshots & Clipboard
+        if re.search(r"\b(take\s+(?:a\s+)?screenshot|capture\s+(?:the\s+)?screen|screen\s+grab)\b", text):
+            return "system_control", {"action": "take_screenshot"}
+
+        if re.search(r"\b(what('s| is)\s+on\s+(?:my\s+)?clipboard|get\s+clipboard|paste\s+clipboard|read\s+clipboard)\b", text):
+            return "system_control", {"action": "get_clipboard"}
+
+        clip_set_match = re.search(r"\b(?:copy|set\s+clipboard)\s+(?:to\s+)?[\"']?(.+?)[\"']?$", text)
+        if clip_set_match and ("clipboard" in text or "copy to clipboard" in text):
+            return "system_control", {"action": "set_clipboard", "text": clip_set_match.group(1).strip("\"'")}
+
+        if re.search(r"\b(lock\s+(?:my\s+)?(?:pc|computer|workstation)|lock\s+screen)\b", text):
+            return "system_control", {"action": "lock_workstation"}
+
+        # 10. Creative Suite
+        ae_match = re.search(r"\b(?:open|launch)\s+after\s+effects\b", text)
+        if ae_match:
+            return "creative_suite", {"app": "after_effects", "action": "launch"}
+
+        pr_match = re.search(r"\b(?:open|launch)\s+premiere(?:\s+pro)?\b", text)
+        if pr_match:
+            return "creative_suite", {"app": "premiere", "action": "launch"}
+
+        ps_match = re.search(r"\b(?:open|launch)\s+photoshop\b", text)
+        if ps_match:
+            return "creative_suite", {"app": "photoshop", "action": "launch"}
+
         return None
