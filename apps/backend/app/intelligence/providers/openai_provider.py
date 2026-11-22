@@ -6,6 +6,7 @@ import httpx
 
 from app.core.config import settings
 from app.intelligence.base import BaseAIProvider
+from app.intelligence.providers.offline_provider import OfflineProvider
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class OpenAIProvider(BaseAIProvider):
     ) -> None:
         self._api_key = api_key
         self._model_name = model_name
+        self._offline_fallback = OfflineProvider()
 
     @property
     def name(self) -> str:
@@ -135,8 +137,36 @@ class OpenAIProvider(BaseAIProvider):
                     json=payload,
                 )
                 if response.status_code != 200:
-                    logger.error("OpenAI error %d: %s", response.status_code, response.text)
-                    return f"[OpenAI Error {response.status_code}] Unable to complete request."
+                    err_msg = ""
+                    try:
+                        err_json = response.json()
+                        err_msg = err_json.get("error", {}).get("message", "")
+                    except Exception:
+                        pass
+
+                    logger.warning("OpenAI returned status %d: %s", response.status_code, err_msg or response.text)
+                    fallback_text = await self._offline_fallback.generate(
+                        prompt, history=history, system_prompt=system_prompt, **kwargs
+                    )
+
+                    if response.status_code == 429:
+                        prefix = (
+                            "> [!WARNING]\n"
+                            "> **OpenAI Quota / Rate Limit Exceeded (429)**: Your OpenAI API key has exhausted its credit balance.\n"
+                            "> *Add credits at [platform.openai.com/billing](https://platform.openai.com/settings/organization/billing/) or switch providers in Settings. NERO is operating via the built-in offline engine:*\n\n"
+                        )
+                    elif response.status_code == 401:
+                        prefix = (
+                            "> [!WARNING]\n"
+                            "> **OpenAI Invalid Key (401)**: The OpenAI API key is invalid or revoked. Check Settings. NERO is operating via the offline engine:*\n\n"
+                        )
+                    else:
+                        prefix = (
+                            f"> [!WARNING]\n"
+                            f"> **OpenAI Error ({response.status_code})**: {err_msg or 'Temporary API failure'}. Operating via offline engine:*\n\n"
+                        )
+                    return f"{prefix}{fallback_text}"
+
                 data = response.json()
                 choices = data.get("choices", [])
                 if choices:
@@ -144,7 +174,14 @@ class OpenAIProvider(BaseAIProvider):
                 return ""
         except Exception as e:
             logger.error("OpenAI request error: %s", e)
-            return f"[OpenAI Fallback] Connection error: {e}"
+            fallback_text = await self._offline_fallback.generate(
+                prompt, history=history, system_prompt=system_prompt, **kwargs
+            )
+            return (
+                f"> [!WARNING]\n"
+                f"> **OpenAI Connection Error**: {e}. Falling back to offline companion:\n\n"
+                f"{fallback_text}"
+            )
 
     async def generate_stream(
         self,
@@ -154,9 +191,10 @@ class OpenAIProvider(BaseAIProvider):
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
         if not self.is_configured:
-            fallback = f"[OpenAI - Offline Fallback] Key not configured. Answering '{prompt}'."
-            for part in fallback.split(" "):
-                yield part + " "
+            async for chunk in self._offline_fallback.generate_stream(
+                prompt, history=history, system_prompt=system_prompt, **kwargs
+            ):
+                yield chunk
             return
 
         key = self.get_api_key()
@@ -179,7 +217,37 @@ class OpenAIProvider(BaseAIProvider):
                     json=payload,
                 ) as response:
                     if response.status_code != 200:
-                        yield f"[OpenAI Error {response.status_code}]"
+                        err_body = await response.aread()
+                        err_msg = ""
+                        try:
+                            err_json = json.loads(err_body.decode("utf-8"))
+                            err_msg = err_json.get("error", {}).get("message", "")
+                        except Exception:
+                            pass
+
+                        logger.warning("OpenAI stream status %d: %s", response.status_code, err_msg or err_body.decode("utf-8", errors="ignore"))
+
+                        if response.status_code == 429:
+                            yield (
+                                "> [!WARNING]\n"
+                                "> **OpenAI Quota Exceeded (429)**: Your OpenAI account has exhausted its available credits.\n"
+                                "> *Add credits at [platform.openai.com/billing](https://platform.openai.com/settings/organization/billing/) or switch providers in Settings. NERO is answering via local companion:*\n\n"
+                            )
+                        elif response.status_code == 401:
+                            yield (
+                                "> [!WARNING]\n"
+                                "> **OpenAI Invalid Key (401)**: The OpenAI API key is invalid or revoked. Check Settings. NERO is answering via local companion:*\n\n"
+                            )
+                        else:
+                            yield (
+                                f"> [!WARNING]\n"
+                                f"> **OpenAI Error ({response.status_code})**: {err_msg or 'Temporary API failure'}. Answering via local companion:*\n\n"
+                            )
+
+                        async for chunk in self._offline_fallback.generate_stream(
+                            prompt, history=history, system_prompt=system_prompt, **kwargs
+                        ):
+                            yield chunk
                         return
 
                     async for line in response.aiter_lines():
@@ -200,4 +268,8 @@ class OpenAIProvider(BaseAIProvider):
                                 continue
         except Exception as e:
             logger.error("OpenAI stream error: %s", e)
-            yield f"[OpenAI Stream Error: {e}]"
+            yield f"> [!WARNING]\n> **OpenAI Stream Error**: {e}. Falling back to offline companion:\n\n"
+            async for chunk in self._offline_fallback.generate_stream(
+                prompt, history=history, system_prompt=system_prompt, **kwargs
+            ):
+                yield chunk
