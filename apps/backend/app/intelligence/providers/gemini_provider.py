@@ -47,18 +47,13 @@ class GeminiProvider(BaseAIProvider):
         self._api_key = api_key
 
     def set_model(self, model_name: str) -> None:
-        self._model_name = self._normalize_model(model_name)
+        self._model_name = model_name.strip() if model_name and model_name.strip() else "gemini-1.5-flash"
 
     @staticmethod
     def _normalize_model(model_name: str) -> str:
-        legacy_map = {
-            "gemini-1.5-flash": "gemini-flash-lite-latest",
-            "gemini-1.5-pro": "gemini-flash-lite-latest",
-            "gemini-2.0-flash-exp": "gemini-flash-latest",
-            "gemini-2.0-flash": "gemini-flash-latest",
-            "gemini-2.5-flash": "gemini-flash-lite-latest",
-        }
-        return legacy_map.get(model_name, model_name)
+        if not model_name or not model_name.strip():
+            return "gemini-1.5-flash"
+        return model_name.strip()
 
     async def test_connection(
         self,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { ModelSelector } from './ModelSelector';
 import { useChatStore } from '../../stores/chatStore';
 import { useAppStore } from '../../stores/appStore';
 import { api } from '../../services/api';
@@ -91,10 +92,12 @@ export function ChatView() {
             <span className="text-xs text-nero-muted font-mono">/ Live</span>
           </div>
 
-          {/* Active provider badge */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-nero-cyan/10 border border-nero-cyan/30 text-nero-cyan text-[11px] font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-nero-cyan animate-pulse" />
-            <span>{activeProviderInfo}</span>
+          {/* Active provider & model selector */}
+          <div className="hidden sm:block">
+            <ModelSelector
+              activeProviderInfo={activeProviderInfo}
+              onModelChanged={(info) => setActiveProviderInfo(info)}
+            />
           </div>
         </div>
 

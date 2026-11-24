@@ -30,6 +30,10 @@ class OfflineProvider(BaseAIProvider):
     def is_configured(self) -> bool:
         return True
 
+    def set_model(self, model_name: str) -> None:
+        if model_name and model_name.strip():
+            self._model_name = model_name.strip()
+
     async def check_health(self) -> bool:
         return True
 
