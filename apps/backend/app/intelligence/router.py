@@ -44,26 +44,25 @@ class AIRouter:
     ) -> BaseAIProvider:
         """Selects the best available provider.
 
-        Evaluates preferred provider first; if unavailable, attempts fallbacks in priority order:
-        1. Preferred provider (if configured)
-        2. Gemini (if configured)
-        3. OpenAI (if configured)
-        4. Ollama (if reachable)
-        5. Offline (always available fallback)
+        Evaluates preferred provider first; if unconfigured or unavailable,
+        honors explicit choice (to surface provider-specific guidance) or falls back
+        safely to offline engine to prevent broken cloud-to-cloud bouncing.
         """
         target_name = (preferred or self._active_provider_name).strip().lower()
         chosen = self.providers.get(target_name)
 
-        if chosen and chosen.is_configured:
-            # If it's a cloud or local provider, verify health or trust config
-            if target_name == "offline":
+        # If offline or explicitly chosen by user, return directly so provider-specific
+        # diagnostics or execution are handled by that provider
+        if chosen:
+            if target_name == "offline" or preferred:
                 return chosen
-            healthy = await chosen.check_health()
-            if healthy:
-                return chosen
-            logger.warning("Preferred provider '%s' failed health check, routing to fallback.", target_name)
+            if chosen.is_configured:
+                healthy = await chosen.check_health()
+                if healthy:
+                    return chosen
+                logger.warning("Provider '%s' failed health check, routing to offline.", target_name)
 
-        # Priority fallback chain
+        # Priority fallback chain: check configured healthy providers, guaranteeing offline fallback
         fallback_order = ["gemini", "openai", "ollama", "offline"]
         for name in fallback_order:
             cand = self.providers.get(name)
@@ -73,7 +72,6 @@ class AIRouter:
                 if await cand.check_health():
                     return cand
 
-        # Final guarantee
         return self.providers["offline"]
 
     async def list_providers(self) -> list[dict[str, Any]]:

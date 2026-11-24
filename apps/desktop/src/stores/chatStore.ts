@@ -7,9 +7,13 @@ interface ChatStore {
   messages: Message[];
   isLoading: boolean;
   streamingMessageId: string | null;
+  selectedProvider: string | null;
+  selectedModel: string | null;
 
   setConversations: (convs: Conversation[]) => void;
   setActiveConversation: (id: string | null) => void;
+  setSelectedProvider: (provider: string | null) => void;
+  setSelectedModel: (model: string | null) => void;
   addMessage: (msg: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   setMessages: (msgs: Message[]) => void;
@@ -25,9 +29,13 @@ export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
   isLoading: false,
   streamingMessageId: null,
+  selectedProvider: null,
+  selectedModel: null,
 
   setConversations: (conversations) => set({ conversations }),
   setActiveConversation: (activeConversationId) => set({ activeConversationId }),
+  setSelectedProvider: (selectedProvider) => set({ selectedProvider }),
+  setSelectedModel: (selectedModel) => set({ selectedModel }),
   addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
   updateMessage: (id, updates) =>
     set((s) => ({

@@ -68,7 +68,13 @@ export const api = {
     ping: () => request<{ pong: boolean; timestamp: string }>('/health/ping'),
   },
   chat: {
-    send: (message: string, conversationId?: string, personalityMode: string = 'adaptive') =>
+    send: (
+      message: string,
+      conversationId?: string,
+      personalityMode: string = 'adaptive',
+      provider?: string,
+      model?: string,
+    ) =>
       request<{
         response: string;
         conversation_id: string;
@@ -77,12 +83,20 @@ export const api = {
         timestamp: string;
       }>('/chat', {
         method: 'POST',
-        body: JSON.stringify({ message, conversation_id: conversationId, personality_mode: personalityMode }),
+        body: JSON.stringify({
+          message,
+          conversation_id: conversationId,
+          personality_mode: personalityMode,
+          provider: provider || undefined,
+          model: model || undefined,
+        }),
       }),
     sendStream: async (
       message: string,
       conversationId: string | undefined,
       personalityMode: string,
+      provider: string | undefined,
+      model: string | undefined,
       onChunk: (chunk: string) => void,
       onDone: (data: StreamDonePayload) => void,
       onError: (err: unknown) => void,
@@ -95,6 +109,8 @@ export const api = {
             message,
             conversation_id: conversationId || null,
             personality_mode: personalityMode,
+            provider: provider || undefined,
+            model: model || undefined,
           }),
         });
 

@@ -265,7 +265,10 @@ class AIOrchestrator:
         except Exception as e:
             logger.warning("Memory extraction notice: %s", e)
 
-        provider = await self.router.select_provider()
+        provider_name = request.provider or self.router.get_active_provider_name()
+        provider = await self.router.select_provider(preferred=provider_name)
+        if request.model and hasattr(provider, "set_model"):
+            provider.set_model(request.model)
         model_name = f"{provider.name}:{provider.default_model}"
 
         response_text = await provider.generate(
@@ -480,7 +483,10 @@ class AIOrchestrator:
         except Exception as e:
             logger.warning("Stream memory extraction notice: %s", e)
 
-        provider = await self.router.select_provider()
+        provider_name = request.provider or self.router.get_active_provider_name()
+        provider = await self.router.select_provider(preferred=provider_name)
+        if request.model and hasattr(provider, "set_model"):
+            provider.set_model(request.model)
         model_name = f"{provider.name}:{provider.default_model}"
         assistant_msg_id = str(uuid.uuid4())
 

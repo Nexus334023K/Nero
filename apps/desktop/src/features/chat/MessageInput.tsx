@@ -57,11 +57,14 @@ export function MessageInput() {
     setStreamingMessageId(assistantTempId);
 
     let receivedFirstChunk = false;
+    const { selectedProvider, selectedModel } = useChatStore.getState();
 
     await api.chat.sendStream(
       trimmed,
       activeConversationId || undefined,
       personalityMode,
+      selectedProvider || undefined,
+      selectedModel || undefined,
       (chunk: string) => {
         if (!receivedFirstChunk) {
           receivedFirstChunk = true;

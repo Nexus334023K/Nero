@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
+import { useChatStore } from '../../stores/chatStore';
 import type { ProviderItem } from '../../types';
 
 export interface ProviderModelPreset {
@@ -67,11 +68,15 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
   const [activeModelName, setActiveModelName] = useState<string>('gemini-1.5-flash');
   const [selectedTab, setSelectedTab] = useState<string>('gemini');
   const [customModel, setCustomModel] = useState<string>('');
+  const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  const [isSavingKey, setIsSavingKey] = useState<boolean>(false);
+  const [keySaveFeedback, setKeySaveFeedback] = useState<string | null>(null);
   const [isSwitching, setIsSwitching] = useState<boolean>(false);
   const [switchFeedback, setSwitchFeedback] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { setSelectedProvider, setSelectedModel } = useChatStore();
 
   // Load providers from backend
   const refreshProviders = async () => {
@@ -85,6 +90,8 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
           const activeItem = res.providers.find((p) => p.name === res.active_provider || p.is_active);
           if (activeItem) {
             setActiveModelName(activeItem.default_model);
+            setSelectedProvider(activeItem.name);
+            setSelectedModel(activeItem.default_model);
             onModelChanged(`${activeItem.name} (${activeItem.default_model})`);
           }
         }
@@ -105,11 +112,14 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
       setActiveProviderName(match[1]);
       setActiveModelName(match[2]);
       setSelectedTab(match[1]);
+      setSelectedProvider(match[1]);
+      setSelectedModel(match[2]);
     } else if (activeProviderInfo) {
       setActiveProviderName(activeProviderInfo);
       setSelectedTab(activeProviderInfo);
+      setSelectedProvider(activeProviderInfo);
     }
-  }, [activeProviderInfo]);
+  }, [activeProviderInfo, setSelectedProvider, setSelectedModel]);
 
   // Click outside to close
   useEffect(() => {
@@ -138,6 +148,9 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
 
       setActiveProviderName(providerId);
       setActiveModelName(modelId);
+      setSelectedProvider(providerId);
+      setSelectedModel(modelId);
+
       const newInfo = `${providerId} (${modelId})`;
       onModelChanged(newInfo);
 
@@ -148,7 +161,7 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
       }, 700);
 
       await refreshProviders();
-    } catch (err) {
+    } catch {
       setSwitchFeedback('Failed to switch model.');
     } finally {
       setIsSwitching(false);
@@ -160,6 +173,29 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
     if (!customModel.trim()) return;
     void handleSelectModel(selectedTab, customModel.trim());
     setCustomModel('');
+  };
+
+  const handleSaveApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiKeyInput.trim()) return;
+    setIsSavingKey(true);
+    setKeySaveFeedback(null);
+    try {
+      await api.providers.saveConfig({
+        provider: selectedTab,
+        api_key: apiKeyInput.trim(),
+        model: activeModelName,
+        is_active: true,
+      });
+      setKeySaveFeedback('API Key saved & active!');
+      setApiKeyInput('');
+      await refreshProviders();
+      setTimeout(() => setKeySaveFeedback(null), 2500);
+    } catch {
+      setKeySaveFeedback('Failed to save key.');
+    } finally {
+      setIsSavingKey(false);
+    }
   };
 
   const currentTabPreset = PRESET_PROVIDERS.find((p) => p.id === selectedTab) || PRESET_PROVIDERS[0];
@@ -196,12 +232,12 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
 
       {/* Dropdown Popover */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-[380px] max-w-[90vw] rounded-2xl bg-[#0c0c14]/95 backdrop-blur-xl border border-white/10 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3.5">
+        <div className="absolute left-0 mt-2 w-[390px] max-w-[92vw] rounded-2xl bg-[#0c0c14]/95 backdrop-blur-xl border border-white/10 shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3.5">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
             <div>
               <h3 className="text-xs font-semibold text-nero-text flex items-center gap-1.5">
-                <span>Select AI Model</span>
+                <span>Select AI Model & Provider</span>
                 {switchFeedback && (
                   <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                     {switchFeedback}
@@ -209,7 +245,7 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
                 )}
               </h3>
               <p className="text-[10px] text-nero-muted mt-0.5">
-                Switch provider or choose any model on the fly
+                Choose any provider, model preset, or custom identifier
               </p>
             </div>
             <button
@@ -248,21 +284,52 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
             })}
           </div>
 
-          {/* Configuration status warning if unconfigured */}
+          {/* Quick API Key setup if unconfigured */}
           {!isTabConfigured && selectedTab !== 'offline' && (
-            <div className="flex items-center justify-between p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
-              <span>{currentTabPreset.name} API key not configured</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  navigate('/settings');
-                }}
-                className="text-[10px] font-semibold underline hover:text-amber-200"
-              >
-                Setup →
-              </button>
-            </div>
+            <form onSubmit={handleSaveApiKey} className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-amber-300">
+                  {currentTabPreset.name} API Key Required
+                </span>
+                {keySaveFeedback && (
+                  <span className="text-[10px] text-emerald-400 font-mono font-medium">
+                    {keySaveFeedback}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-amber-200/80 leading-tight">
+                Paste your API key below to activate {currentTabPreset.name}:
+              </p>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="password"
+                  placeholder={selectedTab === 'gemini' ? 'Enter Gemini API Key (AIzaSy...)' : 'Enter OpenAI API Key (sk-...)'}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="flex-1 text-xs font-mono bg-black/60 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-nero-text focus:border-amber-400 outline-none placeholder:text-amber-200/40"
+                />
+                <button
+                  type="submit"
+                  disabled={!apiKeyInput.trim() || isSavingKey}
+                  className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-semibold text-xs transition-colors disabled:opacity-40 shrink-0"
+                >
+                  Save
+                </button>
+              </div>
+              {selectedTab === 'gemini' && (
+                <div className="text-[10px] text-nero-muted flex items-center justify-between">
+                  <span>Free key with zero credit card:</span>
+                  <a
+                    href="https://aistudio.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-nero-cyan hover:underline"
+                  >
+                    Google AI Studio ↗
+                  </a>
+                </div>
+              )}
+            </form>
           )}
 
           {/* Preset Models List */}
@@ -348,7 +415,7 @@ export function ModelSelector({ activeProviderInfo, onModelChanged }: ModelSelec
               }}
               className="text-nero-cyan hover:underline flex items-center gap-1"
             >
-              <span>Settings</span>
+              <span>Full Settings</span>
               <span>→</span>
             </button>
           </div>

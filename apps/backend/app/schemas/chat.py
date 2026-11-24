@@ -20,6 +20,8 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     personality_mode: str = "adaptive"
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

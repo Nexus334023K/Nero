@@ -38,7 +38,11 @@ class GeminiProvider(BaseAIProvider):
     @property
     def is_configured(self) -> bool:
         key = self.get_api_key()
-        return bool(key and key.strip() and not key.startswith("your_"))
+        if not key or not key.strip():
+            return False
+        if key.startswith("your_") or key.startswith("test_") or key == "dummy":
+            return False
+        return True
 
     def get_api_key(self) -> str:
         return self._api_key if self._api_key is not None else (settings.gemini_api_key or "")
@@ -126,9 +130,13 @@ class GeminiProvider(BaseAIProvider):
         **kwargs: Any,
     ) -> str:
         if not self.is_configured:
+            from app.intelligence.providers.offline_provider import OfflineProvider
+            fallback_text = await OfflineProvider().generate(prompt, history=history, system_prompt=system_prompt)
             return (
-                f"[Gemini - Offline Fallback] (API key not configured) "
-                f"Response to: '{prompt}'. Please configure your Gemini API key in Settings."
+                "> [!WARNING]\n"
+                "> **Google Gemini API Key Required [Offline Fallback]**: No valid Gemini API key is configured.\n"
+                "> *Please add your Gemini API key in Settings (or via the Model Selector). NERO is answering via local companion:*\n\n"
+                f"{fallback_text}"
             )
 
         key = self.get_api_key()
@@ -154,7 +162,13 @@ class GeminiProvider(BaseAIProvider):
                     return ""
                 logger.error("Gemini API error %d: %s", response.status_code, response.text)
                 from app.intelligence.providers.offline_provider import OfflineProvider
-                return await OfflineProvider().generate(prompt, history=history, system_prompt=system_prompt)
+                fallback_text = await OfflineProvider().generate(prompt, history=history, system_prompt=system_prompt)
+                return (
+                    f"> [!WARNING]\n"
+                    f"> **Gemini API Error ({response.status_code})**: Request rejected (verify your Gemini API key in Settings).\n"
+                    f"> *NERO is answering via local offline companion:*\n\n"
+                    f"{fallback_text}"
+                )
         except Exception as e:
             logger.error("Gemini request exception: %s. Using OfflineProvider companion fallback.", e)
             from app.intelligence.providers.offline_provider import OfflineProvider
@@ -168,12 +182,15 @@ class GeminiProvider(BaseAIProvider):
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
         if not self.is_configured:
-            fallback_text = (
-                f"[Gemini - Offline Fallback] API key not configured. "
-                f"Answering '{prompt}' via fallback."
+            yield (
+                "> [!WARNING]\n"
+                "> **Google Gemini API Key Required**: No valid Gemini API key is configured.\n"
+                "> *Please add your Gemini API key in Settings (or via the Model Selector). NERO is answering via local companion:*\n\n"
+                "---\n\n"
             )
-            for part in fallback_text.split(" "):
-                yield part + " "
+            from app.intelligence.providers.offline_provider import OfflineProvider
+            async for chunk in OfflineProvider().generate_stream(prompt, history=history, system_prompt=system_prompt):
+                yield chunk
             return
 
         key = self.get_api_key()
@@ -207,6 +224,12 @@ class GeminiProvider(BaseAIProvider):
 
                     if response.status_code != 200:
                         logger.error("Gemini stream error %d, using offline provider fallback.", response.status_code)
+                        yield (
+                            f"> [!WARNING]\n"
+                            f"> **Gemini API Error ({response.status_code})**: Request rejected (verify your Gemini API key in Settings).\n"
+                            f"> *NERO is answering via local offline companion:*\n\n"
+                            f"---\n\n"
+                        )
                         from app.intelligence.providers.offline_provider import OfflineProvider
                         async for chunk in OfflineProvider().generate_stream(prompt, history=history, system_prompt=system_prompt):
                             yield chunk

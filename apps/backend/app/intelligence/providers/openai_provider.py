@@ -24,6 +24,7 @@ class OpenAIProvider(BaseAIProvider):
         self._api_key = api_key
         self._model_name = model_name
         self._offline_fallback = OfflineProvider()
+        self._credit_balance_exhausted = False
 
     @property
     def name(self) -> str:
@@ -47,6 +48,7 @@ class OpenAIProvider(BaseAIProvider):
 
     def set_api_key(self, api_key: str) -> None:
         self._api_key = api_key
+        self._credit_balance_exhausted = False
 
     def set_model(self, model_name: str) -> None:
         self._model_name = model_name
@@ -83,6 +85,8 @@ class OpenAIProvider(BaseAIProvider):
             return False, f"Connection error: {str(e)}"
 
     async def check_health(self, api_key: str | None = None) -> bool:
+        if self._credit_balance_exhausted and not api_key:
+            return False
         ok, _ = await self.test_connection(api_key=api_key)
         return ok
 
@@ -150,6 +154,7 @@ class OpenAIProvider(BaseAIProvider):
                     )
 
                     if response.status_code == 429:
+                        self._credit_balance_exhausted = True
                         prefix = (
                             "> [!WARNING]\n"
                             "> **OpenAI Quota / Rate Limit Exceeded (429)**: Your OpenAI API key has exhausted its credit balance.\n"
@@ -228,6 +233,7 @@ class OpenAIProvider(BaseAIProvider):
                         logger.warning("OpenAI stream status %d: %s", response.status_code, err_msg or err_body.decode("utf-8", errors="ignore"))
 
                         if response.status_code == 429:
+                            self._credit_balance_exhausted = True
                             yield (
                                 "> [!WARNING]\n"
                                 "> **OpenAI Quota Exceeded (429)**: Your OpenAI account has exhausted its available credits.\n"
